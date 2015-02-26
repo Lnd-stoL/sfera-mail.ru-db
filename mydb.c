@@ -1,7 +1,8 @@
-#include "mydb.h"
 
+#include "mydb.h"
+/*
 int db_close(struct DB *db) {
-	return db->close(db);
+//	return db->close(db);
 }
 
 int db_del(struct DB *db, void *key, size_t key_len) {
@@ -9,7 +10,8 @@ int db_del(struct DB *db, void *key, size_t key_len) {
 		.data = key,
 		.size = key_len
 	};
-	return db->delete(db, &keyt);
+	return db->deletet(db, &keyt);
+
 }
 
 int db_get(struct DB *db, void *key, size_t key_len,
@@ -27,6 +29,7 @@ int db_get(struct DB *db, void *key, size_t key_len,
 
 int db_put(struct DB *db, void *key, size_t key_len,
 	   void *val, size_t val_len) {
+
 	struct DBT keyt = {
 		.data = key,
 		.size = key_len
@@ -37,3 +40,4 @@ int db_put(struct DB *db, void *key, size_t key_len,
 	};
 	return db->insert(db, &keyt, &valt);
 }
+*/

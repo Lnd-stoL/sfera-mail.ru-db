@@ -1,32 +1,6 @@
+
 #include <stddef.h>
 
-/* check `man dbopen` */
-struct DBT {
-	void  *data;
-	size_t size;
-};
-
-struct DB {
-	/* Public API */
-	/* Returns 0 on OK, -1 on Error */
-	int (*close)(struct DB *db);
-	int (*delete)(struct DB *db, struct DBT *key);
-	int (*insert)(struct DB *db, struct DBT *key, struct DBT *data);
-	/* * * * * * * * * * * * * *
-	 * Returns malloc'ed data into 'struct DBT *data'.
-	 * Caller must free data->data. 'struct DBT *data' must be alloced in
-	 * caller.
-	 * * * * * * * * * * * * * */
-	int (*select)(struct DB *db, struct DBT *key, struct DBT *data);
-	/* Sync cached pages with disk
-	 * */
-	int (*sync)(struct DB *db);
-	/* For future uses - sync cached pages with disk
-	 * int (*sync)(const struct DB *db)
-	 * */
-	/* Private API */
-	/*     ...     */
-}; /* Need for supporting multiple backends (HASH/BTREE) */
 
 struct DBC {
 	/* Maximum on-disk file size
@@ -43,13 +17,13 @@ struct DBC {
 	size_t cache_size;
 };
 
-/* Open DB if it exists, otherwise create DB */
-struct DB *dbopen(char *file, struct DBC *conf);
 
-int db_close(struct DB *db);
-int db_delete(struct DB *, void *, size_t);
-int db_select(struct DB *, void *, size_t, void **, size_t *);
-int db_insert(struct DB *, void *, size_t, void * , size_t  );
+struct DB *dbopen (char *file);
+struct DB *dbcreate (char *file, struct DBC *conf);
 
-/* Sync cached pages with disk */
-int db_sync(const struct DB *db);
+int db_close (struct DB *db);
+int db_del (struct DB *, void *, size_t);
+int db_get (struct DB *, void *, size_t, void **, size_t *);
+int db_put (struct DB *, void *, size_t, void * , size_t  );
+
+int db_sync (const struct DB *db);
