@@ -14,6 +14,13 @@ using std::string;
 
 class db_page
 {
+private:
+    size_t  _index;
+
+public:
+    db_page (size_t index);
+
+    size_t index() const;
 };
 
 //----------------------------------------------------------------------------------------------------------------------
