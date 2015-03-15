@@ -1,4 +1,5 @@
-
+#include <glob.h>
+#include <stdint-gcc.h>
 #include "db_containers.hpp"
 
 //----------------------------------------------------------------------------------------------------------------------
@@ -48,6 +49,12 @@ uint8_t *binary_data::byteDataPtr() const
     return (uint8_t *)_dataPtr;
 }
 
+
+uint8_t *binary_data::byteDataEnd() const
+{
+    return byteDataPtr() + _length;
+}
+
 //----------------------------------------------------------------------------------------------------------------------
 
 const binary_data &db_data_entry::key() const
@@ -59,4 +66,10 @@ const binary_data &db_data_entry::key() const
 const binary_data &db_data_entry::value() const
 {
     return _value;
+}
+
+
+size_t db_data_entry::length() const
+{
+    return _key.length() + _value.length();
 }

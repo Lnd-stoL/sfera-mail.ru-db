@@ -135,17 +135,9 @@ void db_file::load()
 
 db_page * db_file::loadPage(int pageIndex)
 {
-    uint8_t *rawPageBytes = (uint8_t *)malloc(_pageSize());
-    rawFileRead(_pageByteOffset(pageIndex), rawPageBytes, _pageSize());
-
-    return new db_page(pageIndex, binary_data(rawPageBytes, _pageSize()));
-}
-
-
-db_page * db_file::allocLoadPage()
-{
-    int pageIndex = this->allocPage();
-    return loadPage(pageIndex);
+    db_page *page = _loadPage(pageIndex);
+    page->load();
+    return page;
 }
 
 
@@ -234,6 +226,16 @@ void db_file::writePage(db_page *page)
 {
     if (!page->wasChanged())  return;
 
+    page->prepareForWriting();
     rawFileWrite(_pageByteOffset(page->index()), page->bytes(), page->size());
     page->wasSaved();
+}
+
+
+db_page *db_file::_loadPage(int pageIndex)
+{
+    uint8_t *rawPageBytes = (uint8_t *)malloc(_pageSize());
+    rawFileRead(_pageByteOffset(pageIndex), rawPageBytes, _pageSize());
+
+    return new db_page(pageIndex, binary_data(rawPageBytes, _pageSize()));
 }

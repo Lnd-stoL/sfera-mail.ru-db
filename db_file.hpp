@@ -45,6 +45,7 @@ private:
     void  _updatePageMetaInfo(int pageIndex, bool allocated);
     void  _extentFileTo(size_t neededSize);
     off_t _pageByteOffset(int index);
+    db_page * _loadPage(int index);
 
     inline size_t _pageSize() const {
         return _basicConfig.pageSize();
@@ -61,15 +62,38 @@ public:
     off_t rawFileWrite(off_t offset, void *data, size_t length) const;
     off_t rawFileRead(off_t offset, void *data, size_t length)  const;
 
+    template<class ...pageInitArgs_t>
+    db_page * allocLoadPage(pageInitArgs_t... pageInitArgs);
+
+    template<class ...pageInitArgs_t>
+    db_page * loadUninitializedPage(int pageId, pageInitArgs_t... pageInitArgs);
+
     db_page * loadPage(int pageIndex);
     void writePage(db_page *page);
     int allocPage();
-    db_page * allocLoadPage();
     void freePage(db_page *page);
 
     const mydb_internal_config& config() const  { return _basicConfig; }
     int rootPageId() const  { return _rootPageId; }
 };
+
+//----------------------------------------------------------------------------------------------------------------------
+
+template<class ...pageInitArgs_t>
+db_page * db_file::allocLoadPage(pageInitArgs_t... pageInitArgs)
+{
+    int pageIndex = this->allocPage();
+    return loadUninitializedPage(pageIndex, std::forward<pageInitArgs_t>(pageInitArgs)...);
+}
+
+
+template<class ...pageInitArgs_t>
+db_page * db_file::loadUninitializedPage(int pageIndex, pageInitArgs_t... pageInitArgs)
+{
+    auto page = _loadPage(pageIndex);
+    page->initializeEmpty(std::forward<pageInitArgs_t>(pageInitArgs)...);
+    return page;
+}
 
 //----------------------------------------------------------------------------------------------------------------------
 

@@ -16,29 +16,25 @@ mydb_database::mydb_database(const string &storageFileName,
                              const mydb_internal_config &config) : _fileStorage(storageFileName)
 {
     _fileStorage.initializeEmpty(maxFileSizeBytes, config);
-    _rootPage = _fileStorage.loadPage(_fileStorage.rootPageId());
+
+    _rootPage = _fileStorage.loadUninitializedPage(_fileStorage.rootPageId(), false);
+    _fileStorage.writePage(_rootPage);
 }
 
 
 void mydb_database::insert(const db_data_entry &element)
 {
-    insert(element.key(), element.value());
+    //db_page *page1 = _fileStorage.allocLoadPage(false);
+    _rootPage->insert(0, element);
+
+    _fileStorage.writePage(_rootPage);
+    //delete _rootPage;
 }
 
 
 void mydb_database::insert(binary_data key, binary_data value)
 {
-    db_page *page1 = _fileStorage.allocLoadPage();
-    db_page *page2 = _fileStorage.allocLoadPage();
-    _fileStorage.freePage(page1);
-    db_page *page3 = _fileStorage.allocLoadPage();
-    db_page *page4 = _fileStorage.allocLoadPage();
-    _fileStorage.freePage(page2);
-
-    delete page1;
-    delete page2;
-    delete page3;
-    delete page4;
+    this->insert(db_data_entry(key, value));
 }
 
 

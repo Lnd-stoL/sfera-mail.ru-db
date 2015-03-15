@@ -16,12 +16,14 @@ private:
 
 
 public:
-    mydb_database (const string &storageFileName);
-    mydb_database (const string &storageFileName, size_t maxFileSizeBytes, const mydb_internal_config& config);
+    mydb_database(const string &storageFileName);
+    mydb_database(const string &storageFileName, size_t maxFileSizeBytes, const mydb_internal_config& config);
     ~mydb_database();
 
-    void insert (const db_data_entry &element);
-    void insert (binary_data key, binary_data value);
+    void insert(const db_data_entry &element);
+    void insert(binary_data key, binary_data value);
+
+
 };
 
 //----------------------------------------------------------------------------------------------------------------------

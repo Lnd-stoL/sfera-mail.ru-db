@@ -28,7 +28,9 @@ public:
 
     size_t length()  const;
     void * dataPtr() const;
+
     uint8_t *byteDataPtr() const;
+    uint8_t *byteDataEnd() const;
 };
 
 //----------------------------------------------------------------------------------------------------------------------
@@ -42,6 +44,8 @@ private:
 public:
     const binary_data&  key()   const;
     const binary_data&  value() const;
+
+    size_t length() const;
 
     db_data_entry(const binary_data &key, const binary_data &value) : _key (key), _value (value)  { }
     db_data_entry()  { }
