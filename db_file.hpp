@@ -4,11 +4,7 @@
 
 //----------------------------------------------------------------------------------------------------------------------
 
-#include <string>
-using std::string;
-
-#include <unistd.h>
-#include <fcntl.h>
+#include "db_page.hpp"
 
 //----------------------------------------------------------------------------------------------------------------------
 
@@ -26,48 +22,53 @@ public:
 
 //----------------------------------------------------------------------------------------------------------------------
 
-class db_page;
-
-//----------------------------------------------------------------------------------------------------------------------
-
 class db_file
 {
 private:
     int _unixFD = -1;
+    size_t _actualFileSize = 0;
     mydb_internal_config  _basicConfig;
 
-    size_t     _maxPageCount;
-    size_t     _pagesMetaTableByteSize;
-    __int32_t  _lastFreePage = -1;
-    size_t     _pagesStartOffset;
-    size_t     _pagesMetaTableStartOffset;
+    size_t _maxPageCount           = 0;
+    size_t _pagesMetaTableByteSize = 0;
+    int    _lastFreePage           = -1;
+    off_t  _pagesStartOffset       = 0;
+    off_t  _pagesMetaTableStartOffset;
+    int    _rootPageId = 0;
 
-    unsigned char *_pagesMetaTable = nullptr;
-    db_page *_rootNode = nullptr;
+    uint8_t *_pagesMetaTable = nullptr;
 
 
 private:
-    void _calcPagesMetaTableByteSize();
-    size_t _getNextFreePageIndex();
-    void _updatePageMetaInfo(size_t pageIndex, bool allocated);
+    void  _calcPagesMetaTableByteSize();
+    int   _getNextFreePageIndex();
+    void  _updatePageMetaInfo(int pageIndex, bool allocated);
+    void  _extentFileTo(size_t neededSize);
+    off_t _pageByteOffset(int index);
+
+    inline size_t _pageSize() const {
+        return _basicConfig.pageSize();
+    }
 
 
 public:
     db_file (const string &fileName);
     ~db_file();
 
-    void initialize(size_t maxDataSizeBytes, const mydb_internal_config& config);
+    void initializeEmpty(size_t maxDataSizeBytes, const mydb_internal_config &config);
     void load();
 
-    off_t rawWrite (off_t offset, void *data, size_t length) const;
-    off_t rawRead (off_t offset, void *data, size_t length)  const;
-    off_t pageInFileOffset(__uint32_t pageIndex)  const;
+    off_t rawFileWrite(off_t offset, void *data, size_t length) const;
+    off_t rawFileRead(off_t offset, void *data, size_t length)  const;
 
-    db_page * loadPage (__uint32_t pageIndex);
-    db_page * allocPage();
-    void freePage (db_page *page);
+    db_page * loadPage(int pageIndex);
+    void writePage(db_page *page);
+    int allocPage();
+    db_page * allocLoadPage();
+    void freePage(db_page *page);
 
     const mydb_internal_config& config() const  { return _basicConfig; }
+    int rootPageId() const  { return _rootPageId; }
 };
 
 //----------------------------------------------------------------------------------------------------------------------

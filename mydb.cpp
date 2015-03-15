@@ -1,84 +1,22 @@
 
 #include "mydb.hpp"
-
-#include "db_file.hpp"
-#include "db_page.hpp"
-
-//----------------------------------------------------------------------------------------------------------------------
-
-binary_data::binary_data() : _length (0), _dataPtr (nullptr)
-{
-}
-
-binary_data::binary_data(size_t length) : _length (length)
-{
-    _dataPtr = malloc(length);
-}
-
-
-binary_data::binary_data(void *dataPtr, size_t length) : _length (length)
-{
-    _dataPtr = dataPtr;
-}
-
-
-binary_data::binary_data(string str) : _length (str.size())
-{
-    _dataPtr = malloc(_length);
-    std::copy(str.begin(), str.end(), (char *)_dataPtr);
-}
-
-
-binary_data::~binary_data()
-{
-}
-
-
-size_t binary_data::length() const
-{
-    return _length;
-}
-
-
-void *binary_data::dataPtr() const
-{
-    return _dataPtr;
-}
-
-
-__uint8_t *binary_data::byteDataPtr() const
-{
-    return (__uint8_t *)_dataPtr;
-}
-
-
-//----------------------------------------------------------------------------------------------------------------------
-
-
-const binary_data &db_data_entry::key() const
-{
-    return _key;
-}
-
-
-const binary_data &db_data_entry::value() const
-{
-    return _value;
-}
-
+#include <cassert>
 
 //----------------------------------------------------------------------------------------------------------------------
 
 mydb_database::mydb_database(const string &storageFileName) : _fileStorage(storageFileName)
 {
     _fileStorage.load();
+    _rootPage = _fileStorage.loadPage(_fileStorage.rootPageId());
 }
 
 
-mydb_database::mydb_database(const string &storageFileName, size_t maxFileSizeBytes,
+mydb_database::mydb_database(const string &storageFileName,
+                             size_t maxFileSizeBytes,
                              const mydb_internal_config &config) : _fileStorage(storageFileName)
 {
-    _fileStorage.initialize(maxFileSizeBytes, config);
+    _fileStorage.initializeEmpty(maxFileSizeBytes, config);
+    _rootPage = _fileStorage.loadPage(_fileStorage.rootPageId());
 }
 
 
@@ -90,11 +28,11 @@ void mydb_database::insert(const db_data_entry &element)
 
 void mydb_database::insert(binary_data key, binary_data value)
 {
-    db_page *page1 = _fileStorage.allocPage();
-    db_page *page2 = _fileStorage.allocPage();
+    db_page *page1 = _fileStorage.allocLoadPage();
+    db_page *page2 = _fileStorage.allocLoadPage();
     _fileStorage.freePage(page1);
-    db_page *page3 = _fileStorage.allocPage();
-    db_page *page4 = _fileStorage.allocPage();
+    db_page *page3 = _fileStorage.allocLoadPage();
+    db_page *page4 = _fileStorage.allocLoadPage();
     _fileStorage.freePage(page2);
 
     delete page1;
@@ -103,3 +41,8 @@ void mydb_database::insert(binary_data key, binary_data value)
     delete page4;
 }
 
+
+mydb_database::~mydb_database()
+{
+    delete _rootPage;
+}

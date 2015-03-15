@@ -1,82 +1,128 @@
-#include <glob.h>
+
 #include "db_page.hpp"
-#include "db_file.hpp"
 
 //----------------------------------------------------------------------------------------------------------------------
 
+db_page::db_page(int index, binary_data pageBytes) :
+        _index (index),
+        _pageSize (pageBytes.length()),
+        _pageBytes (pageBytes.byteDataPtr())
+{
+    _recordCount = _pageBytesUint16(0);
+    _dataBlockEndOff = _pageBytesUint16(sizeof(uint16_t));
+    _hasLinks = _pageBytes[2*sizeof(uint16_t)] != 0;
+    _indexTable = _pageBytes + 2 * sizeof(uint16_t) + 1;
+}
 
+
+void db_page::initializeEmpty(bool hasLinks)
+{
+    _pageBytesUint16(0, 0);            // record count
+    _pageBytesUint16(0, (uint16_t)_pageSize);    // data block end offset
+    _pageBytes[2*sizeof(uint16_t)] = (uint8_t) hasLinks;
+}
+
+
+bool db_page::isFull() const
+{
+    return double(_freeBytes()) <= double(_pageSize) * 0.5;
+}
+
+
+size_t db_page::recordCount() const
+{
+    return _recordCount;
+}
+
+
+bool db_page::hasLinks() const
+{
+    return _hasLinks;
+}
+
+
+int db_page::link(int position) const
+{
+    if (!hasLinks())  return 0;
+    return _recordIndex(position)[4];
+}
+
+
+db_data_entry db_page::record(int position) const
+{
+    return db_data_entry(key(position), value(position));
+}
+
+
+binary_data db_page::key(int position) const
+{
+    auto recordIndex = _recordIndex(position);
+    uint8_t *ptr = _pageBytes + recordIndex[0];
+    return binary_data(ptr, recordIndex[1]);
+}
+
+
+binary_data db_page::value(int position) const
+{
+    auto recordIndex = _recordIndex(position);
+    uint8_t *ptr = _pageBytes + recordIndex[2];
+    return binary_data(ptr, recordIndex[3]);
+}
+
+
+void db_page::insert(int position, db_data_entry data, int linked)
+{
+    // todo here
+}
+
+
+db_page::key_iterator db_page::begin() const
+{
+    return db_page::key_iterator(*this, 0);
+}
+
+
+db_page::key_iterator db_page::end() const
+{
+    return db_page::key_iterator(*this, (int)recordCount());
+}
 
 //----------------------------------------------------------------------------------------------------------------------
 
-size_t db_page::index() const
+db_page::key_iterator::key_iterator(const db_page &page, int position) : _page (page), _position (position)
+{ }
+
+
+bool db_page::key_iterator::operator != (const db_page::key_iterator &rhs)
 {
-    return _index;
+    return _position != rhs._position;
 }
 
 
-db_page::db_page(__uint32_t index, const db_file &dataFile) : _index(index), _dataFile(dataFile)
+db_page::key_iterator db_page::key_iterator::operator ++ (int i)
 {
-    _pageRawData = (__uint8_t *)malloc(dataFile.config().pageSize());
-    dataFile.rawRead(dataFile.pageInFileOffset(index), _pageRawData, dataFile.config().pageSize());
-    _readBtreeNode();
+    return this->operator+=(1);
 }
 
 
-void db_page::_readBtreeNode()
+binary_data db_page::key_iterator::operator * ()
 {
-    __uint16_t inPageOffet = 1;    // sizeof metadata
-    __uint8_t pageMetaInfo = *_pageRawData;
-    _btrnode.isLeaf(pageMetaInfo & 1 != 0);
+    return _page.key(_position);
+}
 
-    __uint16_t recordCount = *(__uint16_t *)(_pageRawData + inPageOffet);  inPageOffet += sizeof(recordCount);
-    _btrnode.records().resize(recordCount);
-    if (_btrnode.isLeaf())  _btrnode.children().resize(recordCount+1);
 
-    for (__uint16_t i = 0; i < recordCount; ++i) {
+int db_page::key_iterator::operator - (db_page::key_iterator const &rhs)
+{
+    return _position - rhs._position;
+}
 
-        if (_btrnode.isLeaf()) {
-            __uint32_t  childId = *(__uint32_t *)(_pageRawData + inPageOffet);  inPageOffet += sizeof(childId);
-            _btrnode.children()[i] = childId;
-        }
-        __uint16_t keyLength = *(__uint16_t *)(_pageRawData + inPageOffet);  inPageOffet += sizeof(keyLength);
-        __uint16_t valLength = *(__uint16_t *)(_pageRawData + inPageOffet);  inPageOffet += sizeof(valLength);
 
-        db_data_entry record = { binary_data(_pageRawData + inPageOffet, keyLength),
-                                 binary_data(_pageRawData + inPageOffet + keyLength, valLength) };
-
-        inPageOffet += keyLength + valLength;
-        _btrnode.records()[i] = record;
+db_page::key_iterator db_page::key_iterator::operator += (int offset)
+{
+    int newPosition = (int)_position + offset;
+    if (newPosition >= _page.recordCount() || newPosition < 0) {
+        return _page.end();
     }
-}
 
-
-void db_page::_writeBtreeNode()
-{
-    __uint16_t inPageOffet = 1;                          // sizeof metadata
-    _pageRawData[0] &= (__uint8_t) _btrnode.isLeaf();    // meta info
-}
-
-
-db_page::~db_page()
-{
-    free(_pageRawData);
-}
-
-
-void db_page::writeToFile()
-{
-    _writeBtreeNode();
-    _dataFile.rawWrite(_dataFile.pageInFileOffset(_index), _pageRawData, _dataFile.config().pageSize());
-}
-
-
-void db_page::initialize()
-{
-
-}
-
-
-void db_page::loadNode()
-{
-
+    return db_page::key_iterator(_page, newPosition);
 }

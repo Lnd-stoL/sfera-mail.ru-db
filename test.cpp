@@ -11,13 +11,15 @@ int main (int argc, char** argv)
 {
     cout << "test" << endl;
 
-    mydb_database db ("storage.db", 12 * 1000000, mydb_internal_config (4096));
+    //mydb_database db("storage.db");
+    mydb_database db("storage.db", 1000000, mydb_internal_config(4096));
 
-    binary_data tk ("testkey");
-    //binary_data tv ("testval");
-    db.insert (tk, tk);
+    binary_data tk("testkey");
+    binary_data tv("test value");
+    db.insert(tk, tv);
 
     free(tk.dataPtr());
+    free(tv.dataPtr());
 
     return 0;
 }

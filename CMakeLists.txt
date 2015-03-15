@@ -8,6 +8,9 @@ set(SOURCE_FILES
     db_page.cpp
     mydb.hpp
     mydb.cpp
-    test.cpp)
+    test.cpp
+    db_containers.cpp
+    db_containers.hpp
+    )
 
 add_executable(Technosphere_spring2015_DB ${SOURCE_FILES})

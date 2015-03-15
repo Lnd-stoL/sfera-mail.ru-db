@@ -1,63 +1,96 @@
 
-#ifndef DB_PAGE_INCLUDED
-#define DB_PAGE_INCLUDED
+#ifndef _DB_PAGE_INCLUDED_
+#define _DB_PAGE_INCLUDED_
 
 //----------------------------------------------------------------------------------------------------------------------
 
-#include <string>
-#include <vector>
-using std::string;
+#include <type_traits>
+#include <iterator>
 
-#include <unistd.h>
-#include <fcntl.h>
-
-#include "mydb.hpp"
-
-//----------------------------------------------------------------------------------------------------------------------
-
-class btree_node
-{
-private:
-    bool  _isLeaf;
-
-    std::vector<db_data_entry>  _records;
-    std::vector<__uint32_t>     _children;
-
-
-public:
-    bool isLeaf() const       { return _isLeaf;   }
-    bool isLeaf(bool isleaf)  { _isLeaf = isleaf; }
-
-    std::vector<__uint32_t>&    children()   { return _children; }
-    std::vector<db_data_entry>& records()    { return _records;  }
-};
+#include "db_containers.hpp"
 
 //----------------------------------------------------------------------------------------------------------------------
 
 class db_page
 {
+public:
+    class key_iterator : public std::iterator<std::random_access_iterator_tag, binary_data>
+    {
+    private:
+        const db_page &_page;
+        int  _position;
+
+    public:
+        key_iterator(const db_page &page, int position);
+
+        bool operator != (const key_iterator &rhs);
+
+        key_iterator operator ++ (int);
+        binary_data operator * ();
+
+        int operator - (const key_iterator &rhs);
+        key_iterator operator += (int offset);
+    };
+
+
 private:
-    __uint32_t  _index;
-    const db_file &_dataFile;
-    btree_node  _btrnode;
+    int  _index;
+    size_t    _pageSize = 0;
+    uint8_t  *_pageBytes = nullptr;
+    bool  _wasChanged = false;
 
-    __uint8_t  *_pageRawData = nullptr;
+    uint8_t  *_indexTable = nullptr;
+    size_t    _recordCount = 0;
+    off_t     _dataBlockEndOff = 0;
+    bool      _hasLinks = false;
 
 
 private:
-    void _readBtreeNode();
-    void _writeBtreeNode();
+    inline uint16_t  _pageBytesUint16(off_t byteOffset) const {
+        return *(uint16_t *)(_pageBytes + byteOffset);
+    }
+
+    inline void _pageBytesUint16(off_t byteOffset, uint16_t val)  {
+        *(uint16_t *)(_pageBytes + byteOffset) = val;
+    }
+
+    inline size_t _freeBytes() const {
+        return _dataBlockEndOff - _recordCount * _recordIndexSize();
+    }
+
+    inline size_t _recordIndexSize() const {
+        return (_hasLinks ? 5 : 4) * sizeof(uint16_t);
+    }
+
+    inline uint16_t* _recordIndex(int position) const {
+        return (uint16_t *)(_indexTable + position * _recordIndexSize());
+    }
+
 
 public:
-    db_page (__uint32_t index, const db_file &dataFile);
-    ~db_page();
+    db_page(int index, binary_data pageBytes);
+    void initializeEmpty(bool hasLinks = false);
 
-    void initialize();
-    void loadNode();
-    void writeToFile();
+    bool isFull() const;
+    size_t recordCount() const;
+    bool hasLinks() const;
 
-    size_t index() const;
-    btree_node& btreeNode()  { return _btrnode; }
+    int link(int position) const;
+    db_data_entry record(int position) const;
+    binary_data key(int position) const;
+    binary_data value(int position) const;
+
+    key_iterator begin() const;
+    key_iterator end() const;
+
+    void insert(int position, db_data_entry data, int linked = 0);
+
+    inline  size_t    size()       const  { return _pageSize; }
+    inline  int       index()      const  { return _index; }
+    inline  bool      wasChanged() const  { return _wasChanged; }
+    inline  uint8_t*  bytes()      const  { return _pageBytes; }
+
+    inline void wasSaved()  { _wasChanged = false; }
 };
 
 //----------------------------------------------------------------------------------------------------------------------
