@@ -17,19 +17,28 @@ public:
     class key_iterator : public std::iterator<std::random_access_iterator_tag, binary_data>
     {
     private:
-        const db_page &_page;
+        const db_page *_page;
         int  _position;
 
     public:
-        key_iterator(const db_page &page, int position);
+        key_iterator(const db_page *page, int position);
 
-        bool operator != (const key_iterator &rhs);
+        bool operator != (const key_iterator &rhs) const;
+        bool operator == (const key_iterator &rhs) const;
+
+        key_iterator& operator = (const key_iterator &rhs);
 
         key_iterator operator ++ (int);
+        key_iterator operator ++();
         binary_data operator * ();
 
         int operator - (const key_iterator &rhs);
         key_iterator operator += (int offset);
+
+        binary_data value() const;
+        int link() const;
+
+        inline int position() const  { return _position; }
     };
 
 
@@ -96,6 +105,8 @@ private:
 
 public:
     db_page(int index, binary_data pageBytes);
+    ~db_page();
+
     void load();
     void initializeEmpty(bool hasLinks = false);
     void prepareForWriting();
@@ -113,11 +124,13 @@ public:
     key_iterator end() const;
 
     void insert(int position, db_data_entry data, int linked = 0);
+    void insert(key_iterator position, db_data_entry data, int linked = 0);
 
     inline  size_t    size()       const  { return _pageSize; }
     inline  int       index()      const  { return _index; }
     inline  bool      wasChanged() const  { return _wasChanged; }
     inline  uint8_t*  bytes()      const  { return _pageBytes; }
+    inline  int       lastLink()   const  { return link((int)_recordCount); }
 
     inline void wasSaved()  { _wasChanged = false; }
 };

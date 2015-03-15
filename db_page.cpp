@@ -24,30 +24,53 @@
 //
 //----------------------------------------------------------------------------------------------------------------------
 
-db_page::key_iterator::key_iterator(const db_page &page, int position) : _page (page), _position (position)
+db_page::key_iterator::key_iterator(const db_page *page, int position) : _page (page), _position (position)
 { }
 
 
-bool db_page::key_iterator::operator != (const db_page::key_iterator &rhs)
+bool db_page::key_iterator::operator != (const db_page::key_iterator &rhs) const
 {
+    assert(_page == rhs._page);
     return _position != rhs._position;
+}
+
+
+bool db_page::key_iterator::operator == (const db_page::key_iterator &rhs) const
+{
+    return !(this->operator!=(rhs));
+}
+
+
+db_page::key_iterator& db_page::key_iterator::operator = (const db_page::key_iterator &rhs)
+{
+    _page = rhs._page;
+    _position = rhs._position;
 }
 
 
 db_page::key_iterator db_page::key_iterator::operator ++ (int i)
 {
-    return this->operator+=(1);
+    db_page::key_iterator tmp = *this;
+    tmp.operator+=(1);
+    return tmp;
+}
+
+
+db_page::key_iterator db_page::key_iterator::operator ++ ()
+{
+    this->operator+=(1);
 }
 
 
 binary_data db_page::key_iterator::operator * ()
 {
-    return _page.key(_position);
+    return _page->key(_position);
 }
 
 
 int db_page::key_iterator::operator - (db_page::key_iterator const &rhs)
 {
+    assert(_page == rhs._page);
     return _position - rhs._position;
 }
 
@@ -55,11 +78,23 @@ int db_page::key_iterator::operator - (db_page::key_iterator const &rhs)
 db_page::key_iterator db_page::key_iterator::operator += (int offset)
 {
     int newPosition = (int)_position + offset;
-    if (newPosition >= _page.recordCount() || newPosition < 0) {
-        return _page.end();
+    if (newPosition >= _page->recordCount() || newPosition < 0) {
+        *this = _page->end();
     }
 
-    return db_page::key_iterator(_page, newPosition);
+    *this = db_page::key_iterator(_page, newPosition);
+}
+
+
+binary_data db_page::key_iterator::value() const
+{
+    return _page->value(_position);
+}
+
+
+int db_page::key_iterator::link() const
+{
+    return _page->link(_position);
 }
 
 //----------------------------------------------------------------------------------------------------------------------
@@ -104,6 +139,7 @@ bool db_page::hasLinks() const
 
 int db_page::link(int position) const
 {
+    assert(_hasLinks);
     if (!hasLinks())  return 0;
     return _recordIndexRawPtr(position)[3];
 }
@@ -147,13 +183,13 @@ void db_page::insert(int position, db_data_entry data, int linked)
 
 db_page::key_iterator db_page::begin() const
 {
-    return db_page::key_iterator(*this, 0);
+    return db_page::key_iterator(this, 0);
 }
 
 
 db_page::key_iterator db_page::end() const
 {
-    return db_page::key_iterator(*this, (int)recordCount());
+    return db_page::key_iterator(this, (int)_recordCount);
 }
 
 
@@ -193,4 +229,19 @@ void db_page::load()
     _recordCount = _pageBytesUint16(0);
     _dataBlockEndOffset = _pageBytesUint16(sizeof(uint16_t));
     _hasLinks = _pageBytes[2*sizeof(uint16_t)] != 0;
+}
+
+
+db_page::~db_page()
+{
+    if (_pageBytes) {
+        free(_pageBytes);
+        _pageBytes = nullptr;
+    }
+}
+
+
+void db_page::insert(db_page::key_iterator position, db_data_entry data, int linked)
+{
+    insert(position.position(), data, linked);
 }
