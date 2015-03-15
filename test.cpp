@@ -14,10 +14,10 @@ int main (int argc, char** argv)
     mydb_database db ("storage.db", 12 * 1000000, mydb_internal_config (4096));
 
     binary_data tk ("testkey");
-    binary_data tv ("testval");
-    db.insert (tk, tv);
+    //binary_data tv ("testval");
+    db.insert (tk, tk);
 
-    free (tk.dataPtr());
-    free (tv.dataPtr());
+    free(tk.dataPtr());
+
     return 0;
 }

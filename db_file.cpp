@@ -1,18 +1,17 @@
 
 #include "db_file.hpp"
+#include "db_page.hpp"
 
 #include <iostream>
-#include <glob.h>
+#include <stdio.h>
 
 using std::cout;
 using std::endl;
 
 //----------------------------------------------------------------------------------------------------------------------
 
-mydb_internal_config::mydb_internal_config (size_t pageSize) : _pageSize (pageSize)
-{
-
-}
+mydb_internal_config::mydb_internal_config(size_t pageSize) : _pageSize (pageSize)
+{ }
 
 
 size_t mydb_internal_config::pageSize() const
@@ -22,19 +21,19 @@ size_t mydb_internal_config::pageSize() const
 
 //----------------------------------------------------------------------------------------------------------------------
 
-db_file::db_file (const string &fileName)
+db_file::db_file(const string &fileName)
 {
     int normalOpenFlags = O_RDWR;
 
-    _unixFD = open (fileName.c_str(), normalOpenFlags);            // assuming the file exists already
-    if (_unixFD == -1) {                                           // if not create it
+    _unixFD = open(fileName.c_str(), normalOpenFlags);            // assuming the file exists already
+    if (_unixFD == -1) {                                          // if not create it
 
-        _unixFD = open (fileName.c_str(), O_WRONLY | O_CREAT | O_EXCL);
+        _unixFD = open(fileName.c_str(), O_WRONLY | O_CREAT | O_EXCL);
         if (_unixFD == -1) {
             cout << "error opening or creating database file '" << fileName << "'" << endl;
         } else {
-            close (_unixFD);
-            _unixFD = open (fileName.c_str(), normalOpenFlags);    // reopen it for RW
+            close(_unixFD);
+            _unixFD = open(fileName.c_str(), normalOpenFlags);    // reopen it for RW
         }
     }
 }
@@ -47,34 +46,37 @@ db_file::~db_file()
     }
 
     if (_unixFD != -1) {
-        _write (sizeof (_basicConfig) + sizeof (__int32_t), &_lastFreePage, sizeof (__int32_t));
+        rawWrite(sizeof(_basicConfig) + sizeof(__int32_t), &_lastFreePage, sizeof(__int32_t));
         close (_unixFD);
     }
 }
 
 
-void db_file::initialize (size_t maxDataSizeBytes, const mydb_internal_config& config)
+void db_file::initialize(size_t maxDataSizeBytes, const mydb_internal_config& config)
 {
     _basicConfig = config;
-    off_t offset = _write (0, &_basicConfig, sizeof (_basicConfig));
+    off_t offset = rawWrite(0, &_basicConfig, sizeof(_basicConfig));
 
     _maxPageCount = maxDataSizeBytes / config.pageSize();
     _calcPagesMetaTableByteSize();
 
-    offset = _write (offset, &_maxPageCount, sizeof (__int32_t));
-    offset = _write (offset, &_lastFreePage, sizeof (__int32_t));
+    offset = rawWrite(offset, &_maxPageCount, sizeof(__int32_t));
+    offset = rawWrite(offset, &_lastFreePage, sizeof(__int32_t));
     _pagesMetaTableStartOffset = (size_t) offset;
-    ftruncate (_unixFD, offset + _pagesMetaTableByteSize);
+    ftruncate (_unixFD, offset + _pagesMetaTableByteSize + _basicConfig.pageSize());
 
     _pagesStartOffset = offset + _pagesMetaTableByteSize;
-    _pagesMetaTable = (unsigned char *) calloc (_pagesMetaTableByteSize, 1);
+    _pagesMetaTable = (unsigned char *) calloc(_pagesMetaTableByteSize, 1);
+
+
 }
 
 
-off_t db_file::_write (off_t offset, void *data, size_t length)
+off_t db_file::rawWrite(off_t offset, void *data, size_t length) const
 {
     for (size_t writtenBytes = 0; writtenBytes < length;) {
-        ssize_t writeResult = pwrite (_unixFD, data + writtenBytes, length - writtenBytes, offset + writtenBytes);
+        ssize_t writeResult = pwrite (_unixFD, (__uint8_t *)data + writtenBytes,
+                                      length - writtenBytes, offset + writtenBytes);
 
         if (writeResult == -1) {
             cout << "error writing to file: " << errno << endl;
@@ -87,10 +89,10 @@ off_t db_file::_write (off_t offset, void *data, size_t length)
 }
 
 
-off_t db_file::_read (off_t offset, void *data, size_t length)
+off_t db_file::rawRead(off_t offset, void *data, size_t length) const
 {
     for (size_t readBytes = 0; readBytes < length;) {
-        ssize_t readResult = pread (_unixFD, data + readBytes, length - readBytes, offset + readBytes);
+        ssize_t readResult = pread(_unixFD, (__uint8_t *)data + readBytes, length - readBytes, offset + readBytes);
         if (readResult == -1 || readResult == 0)  return 0;
         readBytes += readResult;
     }
@@ -102,23 +104,25 @@ off_t db_file::_read (off_t offset, void *data, size_t length)
 void db_file::load()
 {
     off_t offset = 0;
-    offset = _read (offset, &_basicConfig, sizeof (_basicConfig));
+    offset = rawRead(offset, &_basicConfig, sizeof(_basicConfig));
 
-    offset = _read (offset, &_maxPageCount, sizeof (__int32_t));
-    offset = _read (offset, &_lastFreePage, sizeof (__int32_t));
+    offset = rawRead(offset, &_maxPageCount, sizeof(__int32_t));
+    offset = rawRead(offset, &_lastFreePage, sizeof(__int32_t));
 
     _pagesMetaTableStartOffset = (size_t) offset;
     _calcPagesMetaTableByteSize();
     _pagesStartOffset = offset + _pagesMetaTableByteSize;
 
-    _pagesMetaTable = (unsigned char *) malloc (_pagesMetaTableByteSize);
-    _read (_pagesMetaTableStartOffset, _pagesMetaTable, _pagesMetaTableByteSize);
+    _pagesMetaTable = (unsigned char *) malloc(_pagesMetaTableByteSize);
+    rawRead(_pagesMetaTableStartOffset, _pagesMetaTable, _pagesMetaTableByteSize);
+
+    _rootNode = this->loadPage(0);
 }
 
 
-db_page * db_file::loadPage (size_t pageIndex)
+db_page * db_file::loadPage (__uint32_t pageIndex)
 {
-    return new db_page (pageIndex);
+    return new db_page (pageIndex, *this);
 }
 
 
@@ -130,7 +134,7 @@ db_page * db_file::allocPage()
         _lastFreePage = (__int32_t) pageIndex;
     }
 
-    _writePageMetaInfo (pageIndex, true);
+    _updatePageMetaInfo(pageIndex, true);
     return loadPage (pageIndex);
 }
 
@@ -138,7 +142,7 @@ db_page * db_file::allocPage()
 void db_file::freePage (db_page *page)
 {
     _lastFreePage = (__int32_t) page->index() - 1;
-    _writePageMetaInfo (page->index(), false);
+    _updatePageMetaInfo(page->index(), false);
 }
 
 
@@ -171,7 +175,7 @@ size_t db_file::_getNextFreePageIndex()
 }
 
 
-void db_file::_writePageMetaInfo (size_t pageIndex, bool allocated)
+void db_file::_updatePageMetaInfo(size_t pageIndex, bool allocated)
 {
     unsigned currentByteOffset = (unsigned) pageIndex / 8;
     unsigned char currentInByteOffset = (unsigned char) ( pageIndex % 8 );
@@ -182,5 +186,11 @@ void db_file::_writePageMetaInfo (size_t pageIndex, bool allocated)
         _pagesMetaTable[currentByteOffset] &= ~ (unsigned char) (1 << currentInByteOffset);
     }
 
-    _write (_pagesMetaTableStartOffset + currentByteOffset, _pagesMetaTable + currentByteOffset, 1);
+    rawWrite(_pagesMetaTableStartOffset + currentByteOffset, _pagesMetaTable + currentByteOffset, 1);
+}
+
+
+off_t db_file::pageInFileOffset(__uint32_t pageIndex)  const
+{
+    return _pagesStartOffset + pageIndex * _basicConfig.pageSize();
 }
