@@ -110,6 +110,7 @@ db_page::db_page(int index, binary_data pageBytes) :
 
 void db_page::initializeEmpty(bool hasLinks)
 {
+    _hasLinks = hasLinks;
     _wasChanged = true;
     _pageBytesUint16(0, 0);                      // record count
 
@@ -140,8 +141,10 @@ bool db_page::hasLinks() const
 int db_page::link(int position) const
 {
     assert(_hasLinks);
+    assert(position >= 0 && position <= _recordCount);
+
     if (!hasLinks())  return 0;
-    return _recordIndexRawPtr(position)[3];
+    return *(int32_t *)(_recordIndexRawPtr(position) + 3);
 }
 
 
@@ -153,6 +156,8 @@ db_data_entry db_page::record(int position) const
 
 binary_data db_page::key(int position) const
 {
+    assert(position >= 0 && position < _recordCount);
+
     auto recordIndex = _recordIndex(position);
     uint8_t *ptr = _pageBytes + recordIndex.keyValueOffset;
     return binary_data(ptr, recordIndex.keyLength);
@@ -161,6 +166,8 @@ binary_data db_page::key(int position) const
 
 binary_data db_page::value(int position) const
 {
+    assert(position >= 0 && position < _recordCount);
+
     auto recordIndex = _recordIndex(position);
     uint8_t *ptr = _pageBytes + recordIndex.valueOffset();
     return binary_data(ptr, recordIndex.valueLength);
@@ -169,14 +176,15 @@ binary_data db_page::value(int position) const
 
 void db_page::insert(int position, db_data_entry data, int linked)
 {
-    size_t requiredByteCount = data.length() + _recordIndexSize();
-    assert(_freeBytes() >= requiredByteCount);
+    assert(position >= 0 && position < _recordCount+1);
+    assert(possibleToInsert(data));
+    assert(hasLinks() || linked == -1);
 
     _dataBlockEndOffset -= data.length();
     std::copy(data.key().byteDataPtr(), data.key().byteDataEnd(), _pageBytes + _dataBlockEndOffset);
     std::copy(data.value().byteDataPtr(), data.value().byteDataEnd(), _pageBytes + _dataBlockEndOffset + data.key().length());
 
-    _insertRecordIndex(position, record_index(_dataBlockEndOffset, data.key().length(), data.value().length()));
+    _insertRecordIndex(position, record_index(_dataBlockEndOffset, data.key().length(), data.value().length()), linked);
     _wasChanged = true;
 }
 
@@ -200,7 +208,7 @@ db_page::record_index db_page::_recordIndex(int position) const
 }
 
 
-void db_page::_insertRecordIndex(int position, db_page::record_index const &recordIndex)
+void db_page::_insertRecordIndex(int position, db_page::record_index const &recordIndex, int linked)
 {
     assert(_auxInfoSize() + _recordIndexSize() <= _dataBlockEndOffset);
 
@@ -212,6 +220,7 @@ void db_page::_insertRecordIndex(int position, db_page::record_index const &reco
     rawPtr[0] = recordIndex.keyValueOffset;
     rawPtr[1] = recordIndex.keyLength;
     rawPtr[2] = recordIndex.valueLength;
+    if (_hasLinks) relink(position, linked);
 
     _recordCount++;
 }
@@ -243,5 +252,76 @@ db_page::~db_page()
 
 void db_page::insert(db_page::key_iterator position, db_data_entry data, int linked)
 {
+    assert(position.associatedPage() == this);
     insert(position.position(), data, linked);
+}
+
+
+void db_page::relink(int position, int linked)
+{
+    assert(_hasLinks);
+    assert(position >= 0 && position <= _recordCount);
+
+    *(int32_t *)(_recordIndexRawPtr(position) + 3) = linked;
+    _wasChanged = true;
+}
+
+
+bool db_page::possibleToInsert(db_data_entry element)
+{
+    return _freeBytes() >= element.length() + _recordIndexSize();
+}
+
+
+void db_page::remove(int position)
+{
+    assert(position > 0 && position < _recordCount);
+    if (position < 0 || position >= _recordCount)  return;
+
+    auto indexBlock = _recordIndex(position);
+    std::copy_backward(_pageBytes + _dataBlockEndOffset, _pageBytes + indexBlock.keyValueOffset,
+            _pageBytes + indexBlock.dataEnd());
+
+    std::copy((uint8_t *)_recordIndexRawPtr(position+1), _pageBytes + _auxInfoSize(),
+            (uint8_t *)_recordIndexRawPtr(position));
+    _recordCount--;
+
+    for (int i = 0; i < _recordCount; ++i) {
+        auto nextIndex = _recordIndex(i);
+        if (nextIndex.keyValueOffset < indexBlock.keyValueOffset) {
+            auto rawPtr = _recordIndexRawPtr(i);
+            rawPtr[0] += indexBlock.length();
+        }
+    }
+
+    _dataBlockEndOffset += indexBlock.length();
+    _wasChanged = true;
+}
+
+
+bool db_page::isMinimallyFilled() const
+{
+    return double(_freeBytes()) <= double(_pageSize) * 0.7;
+}
+
+
+bool db_page::willRemainMinimallyFilledWithout(int position) const
+{
+    assert(position >= 0 && position < _recordCount);
+
+    size_t realPageSize = _pageSize;
+    _pageSize += _recordIndex(position).length();
+    bool result = isMinimallyFilled();
+    _pageSize = realPageSize;
+
+    return result;
+}
+
+
+void db_page::replace(int position, db_data_entry data, int linked)
+{
+    assert(position >= 0 && position < _recordCount);
+
+    remove(position);
+    insert(position, data, linked);
 }

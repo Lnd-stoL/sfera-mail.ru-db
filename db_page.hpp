@@ -39,6 +39,7 @@ public:
         int link() const;
 
         inline int position() const  { return _position; }
+        inline const db_page *associatedPage() const  { return _page; }
     };
 
 
@@ -53,13 +54,16 @@ private:
                                                       valueLength((uint16_t)vl)  { }
 
         record_index(uint16_t kvo, uint16_t kl, uint16_t vl) : keyValueOffset (kvo), keyLength (kl), valueLength (vl)  { }
+
         inline off_t valueOffset() const  { return keyValueOffset + keyLength; }
+        inline off_t dataEnd() const  { return valueOffset() + valueLength; }
+        inline size_t length() const  { return keyLength + valueLength; }
     };
 
 
 private:
     int  _index;
-    size_t    _pageSize = 0;
+    mutable size_t  _pageSize = 0;
     uint8_t  *_pageBytes = nullptr;
     bool  _wasChanged = false;
 
@@ -101,7 +105,7 @@ private:
 
 private:
     record_index _recordIndex(int position) const;
-    void _insertRecordIndex(int position, const record_index& recordIndex);
+    void _insertRecordIndex(int position, const record_index& recordIndex, int linked);
 
 public:
     db_page(int index, binary_data pageBytes);
@@ -112,8 +116,11 @@ public:
     void prepareForWriting();
 
     bool isFull() const;
+    bool isMinimallyFilled() const;
+    bool willRemainMinimallyFilledWithout(int position) const;
     size_t recordCount() const;
     bool hasLinks() const;
+    bool possibleToInsert(db_data_entry element);
 
     int link(int position) const;
     db_data_entry record(int position) const;
@@ -123,8 +130,11 @@ public:
     key_iterator begin() const;
     key_iterator end() const;
 
-    void insert(int position, db_data_entry data, int linked = 0);
-    void insert(key_iterator position, db_data_entry data, int linked = 0);
+    void insert(int position, db_data_entry data, int linked = -1);
+    void insert(key_iterator position, db_data_entry data, int linked = -1);
+    void relink(int position, int linked);
+    void remove(int position);
+    void replace(int position, db_data_entry data, int linked = -1);
 
     inline  size_t    size()       const  { return _pageSize; }
     inline  int       index()      const  { return _index; }

@@ -117,6 +117,8 @@ off_t db_file::rawFileRead(off_t offset, void *data, size_t length) const
 
 void db_file::load()
 {
+    assert(_maxPageCount == 0 && "The DB can be loaded only once");
+
     off_t offset = 0;
     offset = rawFileRead(offset, &_basicConfig, sizeof(_basicConfig));
 
@@ -133,7 +135,7 @@ void db_file::load()
 }
 
 
-db_page * db_file::loadPage(int pageIndex)
+db_page * db_file::loadPage(int pageIndex) const
 {
     db_page *page = _loadPage(pageIndex);
     page->load();
@@ -158,6 +160,8 @@ int db_file::allocPage()
 
 void db_file::freePage(db_page *page)
 {
+    assert(page != nullptr);
+
     _lastFreePage = page->index() - 1;
     _updatePageMetaInfo(page->index(), false);
 }
@@ -216,15 +220,21 @@ void db_file::_extentFileTo(size_t neededSize)
 }
 
 
-off_t db_file::_pageByteOffset(int index)
+off_t db_file::_pageByteOffset(int index) const
 {
+    assert(index >= 0 && index < _maxPageCount);
     return _pagesStartOffset + index * _pageSize();
 }
 
 
 void db_file::writePage(db_page *page)
 {
-    if (!page->wasChanged())  return;
+    assert(page != nullptr);
+
+    if (!page->wasChanged()) {
+        std::cout << "warning: writing non changed page #" << page->index() << std::endl;
+        return;
+    }
 
     page->prepareForWriting();
     rawFileWrite(_pageByteOffset(page->index()), page->bytes(), page->size());
@@ -232,10 +242,21 @@ void db_file::writePage(db_page *page)
 }
 
 
-db_page *db_file::_loadPage(int pageIndex)
+db_page *db_file::_loadPage(int pageIndex) const
 {
+    assert(pageIndex >= 0 && pageIndex < _maxPageCount);
+
     uint8_t *rawPageBytes = (uint8_t *)malloc(_pageSize());
     rawFileRead(_pageByteOffset(pageIndex), rawPageBytes, _pageSize());
 
     return new db_page(pageIndex, binary_data(rawPageBytes, _pageSize()));
+}
+
+
+void db_file::changeRootPage(db_page *page)
+{
+    assert(page != nullptr);
+
+    _rootPageId = page->index();
+    rawFileWrite(2*sizeof(int32_t), &_rootPageId, sizeof(int32_t));
 }

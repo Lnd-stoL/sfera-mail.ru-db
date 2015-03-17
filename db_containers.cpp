@@ -55,6 +55,15 @@ uint8_t *binary_data::byteDataEnd() const
     return byteDataPtr() + _length;
 }
 
+
+std::string binary_data::toString() const
+{
+    std::string str(_length, ' ');
+    std::copy(byteDataPtr(), byteDataEnd(), str.begin());
+
+    return str;
+}
+
 //----------------------------------------------------------------------------------------------------------------------
 
 const binary_data &db_data_entry::key() const

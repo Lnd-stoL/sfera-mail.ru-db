@@ -31,6 +31,8 @@ public:
 
     uint8_t *byteDataPtr() const;
     uint8_t *byteDataEnd() const;
+
+    std::string toString() const;
 };
 
 //----------------------------------------------------------------------------------------------------------------------

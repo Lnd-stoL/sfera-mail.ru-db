@@ -44,8 +44,8 @@ private:
     int   _getNextFreePageIndex();
     void  _updatePageMetaInfo(int pageIndex, bool allocated);
     void  _extentFileTo(size_t neededSize);
-    off_t _pageByteOffset(int index);
-    db_page * _loadPage(int index);
+    off_t _pageByteOffset(int index) const;
+    db_page * _loadPage(int index) const;
 
     inline size_t _pageSize() const {
         return _basicConfig.pageSize();
@@ -68,10 +68,12 @@ public:
     template<class ...pageInitArgs_t>
     db_page * loadUninitializedPage(int pageId, pageInitArgs_t... pageInitArgs);
 
-    db_page * loadPage(int pageIndex);
+    db_page * loadPage(int pageIndex) const;
     void writePage(db_page *page);
     int allocPage();
     void freePage(db_page *page);
+
+    void changeRootPage(db_page *page);
 
     const mydb_internal_config& config() const  { return _basicConfig; }
     int rootPageId() const  { return _rootPageId; }
