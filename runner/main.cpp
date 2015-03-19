@@ -48,11 +48,13 @@ int main(int argc, char *argv[]) {
 		auto op = it->as<std::vector<std::string>>();
 		int retval = 0;
 		if (op[0] == std::string("put")) {
+			std::cout << "put " << op[1] << " " << op[2] << std::endl;
 			clock_gettime(CLOCK_MONOTONIC, &t1);
 			retval = db->put(op[1], op[2]);
 			clock_gettime(CLOCK_MONOTONIC, &t2);
 			time += (t2.tv_sec - t1.tv_sec) * 1e9 + (t2.tv_nsec - t1.tv_nsec);
 		} else if (op[0] == std::string("get")) {
+			std::cout << "get " << op[1] << std::endl;			
 			char *val;
 			size_t val_size;
 			clock_gettime(CLOCK_MONOTONIC, &t1);
@@ -61,6 +63,7 @@ int main(int argc, char *argv[]) {
 			time += (t2.tv_sec - t1.tv_sec) * 1e9 + (t2.tv_nsec - t1.tv_nsec);
 			out.write(val, val_size) << "\n";
 		} else if (op[0] == std::string("del")) {
+			std::cout << "del " << op[1] << std::endl;
 			clock_gettime(CLOCK_MONOTONIC, &t1);
 			retval = db->del(op[1]);
 			clock_gettime(CLOCK_MONOTONIC, &t2);

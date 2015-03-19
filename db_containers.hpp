@@ -33,6 +33,8 @@ public:
     uint8_t *byteDataEnd() const;
 
     std::string toString() const;
+
+    inline bool valid() const  { return _dataPtr != nullptr; }
 };
 
 //----------------------------------------------------------------------------------------------------------------------

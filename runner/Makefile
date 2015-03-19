@@ -7,7 +7,7 @@ all:
 
 test_uni:
 	rm -rf ./mydbpath
-	./test_speed ../workload.uni
+	./test_speed ../workloads/workload.uni
 #	diff ../workload.uni.out ../workload.uni.out.yours >> diffs
 
 test_old:

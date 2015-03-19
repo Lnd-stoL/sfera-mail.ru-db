@@ -32,7 +32,7 @@ db_file::db_file(const string &fileName)
     _unixFD = open(fileName.c_str(), normalOpenFlags);            // assuming the file exists already
     if (_unixFD == -1) {                                          // if not create it
 
-        _unixFD = open(fileName.c_str(), O_WRONLY | O_CREAT | O_EXCL);
+        _unixFD = open(fileName.c_str(), O_WRONLY | O_CREAT | O_EXCL, 0777);
         if (_unixFD == -1) {
             cout << "error opening or creating database file '" << fileName << "'" << endl;
         } else {
@@ -214,7 +214,7 @@ void db_file::_updatePageMetaInfo(int pageIndex, bool allocated)
 void db_file::_extentFileTo(size_t neededSize)
 {
     if (_actualFileSize < neededSize) {
-        ftruncate (_unixFD, neededSize);
+        syscall_check( ftruncate (_unixFD, neededSize) );
         _actualFileSize = neededSize;
     }
 }

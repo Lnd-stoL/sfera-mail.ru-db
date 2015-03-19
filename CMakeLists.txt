@@ -11,6 +11,8 @@ set(SOURCE_FILES
     test.cpp
     db_containers.cpp
     db_containers.hpp
+    syscall_checker.h
+    libmydb.cpp
     )
 
 add_executable(Technosphere_spring2015_DB ${SOURCE_FILES})

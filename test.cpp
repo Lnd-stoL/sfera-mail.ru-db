@@ -23,6 +23,10 @@ int main (int argc, char** argv)
     binary_data tk8("3zzzzzzzzzzzzzzz");
     binary_data tk9("0sdjhjkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkaaaaaaaa");
     binary_data tk10("01djhjkkkkkkkkkkkfffffffffffffffffkaaaaaa");
+    binary_data tk11("999999999991djhjkkkkkkkkkkkfffffffffffffffffkaaaaaa");
+    binary_data tk12("99991djhjkkkkkkkkkkkfffffffffffffffffkaaaaaa");
+    binary_data tk13("a1djhjkkkkkkkkkkkfffffffffffffffffkaaaaaa");
+    binary_data tk14("b1djhjkkkfdsgasdfsdfasdfkkkkkkkkfffffffffffffffffkaaaaaa");
     binary_data tv("test value");
 
     db.insert(tk1, tv);
@@ -36,6 +40,10 @@ int main (int argc, char** argv)
     db.insert(tk8, tv);
     db.insert(tk9, tv);
     db.insert(tk10, tv);
+    db.insert(tk11, tv);
+    db.insert(tk12, tv);
+    db.insert(tk13, tv);
+    db.insert(tk14, tv);
 
     binary_data test = db.get(tv);
     cout << db.dump() << endl;
