@@ -143,7 +143,15 @@ void mydb_database::_rKeyInsertionLookup(int pageId, int parentPageId, const db_
     auto keyIt = std::lower_bound(page->begin(), page->end(), element.key(), _binaryKeyComparer);
 
     if (keyIt != page->end() && _keysEqual(element.key(), *keyIt)) {
-        throw 5; // todo handle equal key error
+        if (page->canReplace(keyIt.position(), element.value())) {
+            page->replace(keyIt.position(), element.value());
+            _fileStorage.writePage(page);
+            _unloadPage(page);
+        } else {
+            _unloadPage(page);
+            throw std::runtime_error("Failed to update value"); // todo handle equal key error
+        }
+        return;
     }
 
     if (!page->hasLinks()) {
@@ -155,9 +163,10 @@ void mydb_database::_rKeyInsertionLookup(int pageId, int parentPageId, const db_
     }
 
     int nextPageId = keyIt.link();
+    int parPageId = page->index();
     _unloadPage(page);
 
-    return _rKeyInsertionLookup(nextPageId, pageId, element);
+    return _rKeyInsertionLookup(nextPageId, parPageId, element);
 }
 
 
@@ -179,12 +188,8 @@ void mydb_database::_tryInsertInPage(int pageId, int parentPageId, const db_data
     assert(!page->hasLinks());
 
     if (!page->possibleToInsert(element)) {
-        page = _splitPage(page, parentPageId, element);
-    }
-
-    if (!page->possibleToInsert(element)) {
         _unloadPage(page);
-        throw 10; // todo handle not possible to insert
+        std::runtime_error("Impossible insert");
     }
 
     auto insertionIt = std::lower_bound(page->begin(), page->end(), element.key(), _binaryKeyComparer);
@@ -196,53 +201,33 @@ void mydb_database::_tryInsertInPage(int pageId, int parentPageId, const db_data
 
 db_page *mydb_database::_splitPage(db_page *page, int parentPageId, const db_data_entry &element)
 {
-    db_page *newPage = _fileStorage.allocLoadPage(page->hasLinks());
-    int medianKeyPosition = (int) page->recordCount() / 2;
-
-    int lastLink = -1;
-    for (int i = medianKeyPosition + 1, j = 0; i < page->recordCount(); ++i, ++j) {
-        if (newPage->hasLinks()) {
-            newPage->insert(j, page->record(i), page->link(i));
-            if (j == 0)
-                lastLink = page->link(i);
-        } else {
-            newPage->insert(j, page->record(i));
-        }
-
-        page->remove(i);
-    }
-    if (newPage->hasLinks()) {
-        newPage->relink((int)newPage->recordCount(), page->lastLink());
-        //assert(lastLink != -1);
-        page->relink((int)page->recordCount(), page->link(medianKeyPosition));
-    }
-
+    db_page *rightPage = _fileStorage.allocLoadPage(page->hasLinks());
+    int medianKeyPosition = -1;
+    db_page *leftPage = page->splitEquispace(rightPage, medianKeyPosition);
     db_data_entry medianElement = _copyDataFromLoadedPage(page->record(medianKeyPosition));
-    page->remove(medianKeyPosition);
+    _unloadPage(page);
 
-    db_page *parentPage = nullptr;
     if (parentPageId == -1) {
-        _newRoot(medianElement, page->index(), newPage->index());
-        //parentPage = _rootPage;
+        _newRoot(medianElement, leftPage->index(), rightPage->index());
     } else {
 
-        parentPage = _loadPage(parentPageId);
-        auto insertionIt = std::lower_bound(parentPage->begin(), parentPage->end(), element.key(), _binaryKeyComparer);
-        parentPage->insert(insertionIt, medianElement, parentPage->link(insertionIt.position()));
-        parentPage->relink(insertionIt.position()+1, newPage->index());
+        db_page *parentPage = _loadPage(parentPageId);
+        auto insertionIt = std::lower_bound(parentPage->begin(), parentPage->end(), medianElement.key(), _binaryKeyComparer);
+        parentPage->relink(insertionIt.position(), rightPage->index());
+        parentPage->insert(insertionIt, medianElement, leftPage->index());
         _fileStorage.writePage(parentPage);
         _unloadPage(parentPage);
     }
 
-    _fileStorage.writePage(page);
-    _fileStorage.writePage(newPage);
+    _fileStorage.writePage(leftPage);
+    _fileStorage.writePage(rightPage);
 
     if (_binaryKeyComparer(element.key(), medianElement.key())) {
-        _unloadPage(newPage);
-        return page;
+        _unloadPage(rightPage);
+        return leftPage;
     } else {
-        _unloadPage(page);
-        return newPage;
+        _unloadPage(leftPage);
+        return rightPage;
     }
 }
 
@@ -334,8 +319,8 @@ void mydb_database::_removeFromLeaf(const mydb_database::record_lookup_result &l
             _unloadPage(leftPrevPage);
 
             page->insert(0, parentPage->record(lookupResult.parentRecord.inPagePosition));
-            parentPage->replace(lookupResult.parentRecord.inPagePosition, medianElement,
-                    parentPage->link(lookupResult.parentRecord.inPagePosition));
+            /*parentPage->replace(lookupResult.parentRecord.inPagePosition, medianElement,
+                    parentPage->link(lookupResult.parentRecord.inPagePosition));*/
         } else {
             rotationSucceeded = false;
         }
@@ -350,8 +335,8 @@ void mydb_database::_removeFromLeaf(const mydb_database::record_lookup_result &l
             _unloadPage(rightNextPage);
 
             page->insert((int)page->recordCount(), parentPage->record(lookupResult.parentRecord.inPagePosition));
-            parentPage->replace(lookupResult.parentRecord.inPagePosition, medianElement,
-                    parentPage->link(lookupResult.parentRecord.inPagePosition));
+            /*parentPage->replace(lookupResult.parentRecord.inPagePosition, medianElement,
+                    parentPage->link(lookupResult.parentRecord.inPagePosition));*/
         } else {
             rotationSucceeded = false;
         }
@@ -395,4 +380,34 @@ db_page * mydb_database::_findNeighbours(const mydb_database::record_internal_id
     }
 
     return parentPage;
+}
+
+
+string mydb_database::dumpSortedKeys() const
+{
+    std::ostringstream info;
+    _dumpSortedKeys(info, _fileStorage.rootPageId());
+    return info.str();
+}
+
+
+void mydb_database::_dumpSortedKeys(std::ostringstream &info, int pageId) const
+{
+    db_page *page = _loadPage(pageId);
+    info << "\tpage #" << pageId <<  ": (has_links=" << page->hasLinks() << ")" << std::endl;
+
+    for (auto elementIt = page->begin(); elementIt != page->end(); ++elementIt) {
+        if (page->hasLinks()) {
+            info << "\t[" << elementIt.link() << "] " << std::endl;
+            _dumpSortedKeys(info, elementIt.link());
+        }
+        info << (*elementIt).toString() << std::endl;
+        //info << "\t" << (*elementIt).toString() << " : " << elementIt.value().toString() << std::endl;
+    }
+    if (page->hasLinks()) {
+        info << "\t[" << page->lastLink() << "] " << std::endl;
+        _dumpSortedKeys(info, page->lastLink());
+    }
+
+    _unloadPage(page);
 }

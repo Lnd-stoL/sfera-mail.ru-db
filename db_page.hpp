@@ -134,7 +134,10 @@ public:
     void insert(key_iterator position, db_data_entry data, int linked = -1);
     void relink(int position, int linked);
     void remove(int position);
-    void replace(int position, db_data_entry data, int linked = -1);
+    void replace(int position, binary_data newValue);
+    bool canReplace(int position, binary_data newValue) const;
+
+    db_page * splitEquispace(db_page * rightPage, int& medianPosition);
 
     inline  size_t    size()       const  { return _pageSize; }
     inline  int       index()      const  { return _index; }

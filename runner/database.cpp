@@ -66,22 +66,22 @@ Database::~Database() {
 
 int Database::put(const std::string& key, const std::string& val) {
 	int retval = this->put_function(this->db_object, key.c_str(), key.size(), val.c_str(), val.size());
-//	if (retval != 0)
-//		std::cout << "Error, while inserting \"" << key << "\" with value \"" << val << "\"\n";
+	if (retval != 0)
+		std::cerr << "Error, while inserting \"" << key << "\" with value \"" << val << "\"\n";
 	return retval;
 }
 
 int Database::get(const std::string& key, char **val, size_t *val_size) {
 	int retval = this->get_function(this->db_object, key.c_str(), key.size(), val, val_size);
-//	if (retval != 0)
-//		std::cout << "Error, while getting \"" << key <<  "\"\n";
+	if (retval != 0)
+		std::cerr << "Error, while getting \"" << key <<  "\"\n";
 	return retval;
 }
 
 int Database::del(const std::string& key) {
 	int retval = this->del_function(this->db_object, key.c_str(), key.size());
 	if (retval != 0)
-		std::cout << "Error, while deleting \"" << key << "\"\n";
+		std::cerr << "Error, while deleting \"" << key << "\"\n";
 	return retval;
 }
 

@@ -57,6 +57,7 @@ private:
     binary_data _copyDataFromLoadedPage(binary_data src) const;
     db_data_entry _copyDataFromLoadedPage(db_data_entry src) const;
     void _dump(std::ostringstream &info, int pageId) const;
+    void _dumpSortedKeys(std::ostringstream &info, int pageId) const;
 
     static bool _binaryKeyComparer(binary_data key1, binary_data key2);
     static bool _keysEqual(binary_data key1, binary_data key2);
@@ -73,6 +74,7 @@ public:
     void remove(binary_data key);
 
     string dump() const;
+    string dumpSortedKeys() const;
 };
 
 //----------------------------------------------------------------------------------------------------------------------

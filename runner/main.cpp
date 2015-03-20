@@ -44,6 +44,7 @@ int main(int argc, char *argv[]) {
 	std::ofstream out ((def_wl_name + ".out.yours").c_str());
 	struct timespec t1, t2; memset(&t1, 0, sizeof(t1)); memset(&t2, 0, sizeof(t2));
 	uint64_t time = 0;
+	int putFails = 0;
 	for (YAML::const_iterator it = workload.begin(); it != workload.end(); ++it) {
 		auto op = it->as<std::vector<std::string>>();
 		int retval = 0;
@@ -52,16 +53,21 @@ int main(int argc, char *argv[]) {
 			clock_gettime(CLOCK_MONOTONIC, &t1);
 			retval = db->put(op[1], op[2]);
 			clock_gettime(CLOCK_MONOTONIC, &t2);
+			if (retval != 0)  ++putFails;
 			time += (t2.tv_sec - t1.tv_sec) * 1e9 + (t2.tv_nsec - t1.tv_nsec);
+
 		} else if (op[0] == std::string("get")) {
-			std::cout << "get " << op[1] << std::endl;			
+			std::cout << "get " << op[1] << std::endl;
 			char *val;
 			size_t val_size;
 			clock_gettime(CLOCK_MONOTONIC, &t1);
 			retval = db->get(op[1], &val, &val_size);
 			clock_gettime(CLOCK_MONOTONIC, &t2);
 			time += (t2.tv_sec - t1.tv_sec) * 1e9 + (t2.tv_nsec - t1.tv_nsec);
-			out.write(val, val_size) << "\n";
+			if (retval == 0) {
+				out.write(val, val_size) << "\n";
+			}
+
 		} else if (op[0] == std::string("del")) {
 			std::cout << "del " << op[1] << std::endl;
 			clock_gettime(CLOCK_MONOTONIC, &t1);
@@ -72,6 +78,10 @@ int main(int argc, char *argv[]) {
 			std::cout << "bad op\n";
 		}
 	}
-	std::cerr << "Overall lib time: " << ((double )time / 1e9) << "\n";
+
+    std::cout << "Put fails: " << putFails << std::endl;
+	std::cout << "Overall lib time: " << ((double )time / 1e9) << "\n";
+
+	delete db;
 	return 0;
 }

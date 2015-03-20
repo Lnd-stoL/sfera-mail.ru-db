@@ -6,7 +6,11 @@
 
 //----------------------------------------------------------------------------------------------------------------------
 
-#define catch_exceptions(fnn,rt)  catch (std::exception err)  { std::cerr << fnn << ": " << err.what() << std::endl; \
+#define catch_exceptions(fnn,rt)  catch (const errors::syscall_result_failed &err)  { std::cerr << fnn << ": syscall_result_failed: " << err.what() << std::endl; \
+ 							      return rt; } \
+								  catch (const std::runtime_error &err)  { std::cerr << fnn << ": runtime_error: " << err.what() << std::endl; \
+ 							      return rt; } \
+							      catch (const std::exception &err)  { std::cerr << fnn << ": " << err.what() << std::endl; \
  							      return rt; }
 
 //----------------------------------------------------------------------------------------------------------------------
@@ -37,6 +41,7 @@ extern "C"
 int db_close(mydb_database *db)
 {
 	try {
+		//std::cout << db->dump() << std::endl;
 		delete db;
 		return 0;
 	}
