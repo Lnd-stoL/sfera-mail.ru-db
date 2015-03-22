@@ -131,10 +131,12 @@ public:
     key_iterator end() const;
 
     void insert(int position, db_data_entry data, int linked = -1);
+    void append(db_data_entry data, int linked = -1);
     void insert(key_iterator position, db_data_entry data, int linked = -1);
     void relink(int position, int linked);
     void remove(int position);
     void replace(int position, binary_data newValue);
+    void replace(int position, const db_data_entry& element, int linked = -1);
     bool canReplace(int position, binary_data newValue) const;
 
     db_page * splitEquispace(db_page * rightPage, int& medianPosition);

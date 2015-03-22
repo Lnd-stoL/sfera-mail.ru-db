@@ -136,13 +136,9 @@ binary_data mydb_database::_copyDataFromLoadedPage(binary_data src) const
 void mydb_database::_rKeyInsertionLookup(int pageId, int parentPageId, const db_data_entry &element)
 {
     db_page *page = _loadPage(pageId);
-    if (page->isFull()) {
-        page = _splitPage(page, parentPageId, element);
-    }
-
     auto keyIt = std::lower_bound(page->begin(), page->end(), element.key(), _binaryKeyComparer);
 
-    if (keyIt != page->end() && _keysEqual(element.key(), *keyIt)) {
+    if (keyIt != page->end() && _keysEqual(element.key(), *keyIt)) {    // something like value update
         if (page->canReplace(keyIt.position(), element.value())) {
             page->replace(keyIt.position(), element.value());
             _fileStorage.writePage(page);
@@ -152,6 +148,11 @@ void mydb_database::_rKeyInsertionLookup(int pageId, int parentPageId, const db_
             throw std::runtime_error("Failed to update value"); // todo handle equal key error
         }
         return;
+    }
+
+    if (page->isFull()) {
+        page = _splitPage(page, parentPageId, element);
+        keyIt = std::lower_bound(page->begin(), page->end(), element.key(), _binaryKeyComparer);
     }
 
     if (!page->hasLinks()) {
@@ -170,6 +171,57 @@ void mydb_database::_rKeyInsertionLookup(int pageId, int parentPageId, const db_
 }
 
 
+bool mydb_database::_rKeyErasingLookup(int pageId, int parentPageId, int parentRecordPos, const binary_data &elementKey)
+{
+    db_page *page = _loadPage(pageId);
+    auto keyIt = std::lower_bound(page->begin(), page->end(), elementKey, _binaryKeyComparer);
+
+    if (keyIt != page->end() && _keysEqual(elementKey, *keyIt)) {
+        if (!page->hasLinks()) {
+
+            page->remove(keyIt.position());
+            if (page->isMinimallyFilled()) {
+                _fileStorage.writePage(page);
+                _unloadPage(page);
+                return false;
+            }
+
+            bool ret = _makePageMinimallyFull(page, parentPageId, parentRecordPos, elementKey);
+            _unloadPage(page);
+            return ret;
+
+        } else {
+
+
+            return false;
+        }
+    }
+
+    if (!page->hasLinks()) {
+        throw std::runtime_error("Deleting not existing element");
+    }
+
+    int nextPageId = keyIt.link();
+    int parPageId = page->index();
+    _unloadPage(page);
+
+    if (_rKeyErasingLookup(nextPageId, parPageId, keyIt.position(), elementKey)) {    // we need to check the page
+        if (pageId != _fileStorage.rootPageId()) {
+            page = _loadPage(pageId);
+            bool ret = false;
+            if (!page->isMinimallyFilled()) {
+                ret = _makePageMinimallyFull(page, parentPageId, parentRecordPos, elementKey);
+            }
+            _unloadPage(page);
+            return ret;
+
+        } else _removeEmptyRoot();
+        return false;
+    }
+    return false;
+}
+
+
 void mydb_database::_newRoot(db_data_entry element, int leftLink, int rightLink)
 {
     db_page *rootPage = _fileStorage.allocLoadPage(true);
@@ -177,7 +229,7 @@ void mydb_database::_newRoot(db_data_entry element, int leftLink, int rightLink)
     rootPage->relink(1, rightLink);
 
     _fileStorage.writePage(rootPage);
-    _fileStorage.changeRootPage(rootPage);
+    _fileStorage.changeRootPage(rootPage->index());
     _rootPage = rootPage;
 }
 
@@ -194,6 +246,15 @@ void mydb_database::_tryInsertInPage(int pageId, int parentPageId, const db_data
 
     auto insertionIt = std::lower_bound(page->begin(), page->end(), element.key(), _binaryKeyComparer);
     page->insert(insertionIt, element);
+    _fileStorage.writePage(page);
+    _unloadPage(page);
+}
+
+
+void mydb_database::_tryEraseFromPage(int pageId, int parentPageId, int position)
+{
+    db_page *page = _loadPage(pageId);
+    page->remove(position);
     _fileStorage.writePage(page);
     _unloadPage(page);
 }
@@ -232,6 +293,60 @@ db_page *mydb_database::_splitPage(db_page *page, int parentPageId, const db_dat
 }
 
 
+bool mydb_database::_makePageMinimallyFull(db_page *page, int parentPageId,
+                                           int parentRecordPos, const binary_data &elementKey)
+{
+    int rightNextPageId = -1, leftPrevPageId = -1;
+    db_page *parentPage = _findNeighbours(record_internal_id(parentPageId, parentRecordPos),
+            leftPrevPageId, rightNextPageId);
+
+    assert(rightNextPageId != -1 || leftPrevPageId != -1);
+    db_page *rightNextPage = rightNextPageId == -1 ? nullptr : _loadPage(rightNextPageId);
+    db_page *leftPrevPage  = leftPrevPageId  == -1 ? nullptr : _loadPage(leftPrevPageId);
+
+    bool ret = false;
+    bool rotationSucceeded = _tryTakeFromNearest(page, parentPage, parentRecordPos, leftPrevPage, rightNextPage);
+    if (!rotationSucceeded) {
+
+        if (rightNextPage != nullptr) {
+            int linked = -1;
+            if (page->hasLinks())  linked = page->lastLink();
+            page->append(parentPage->record(parentRecordPos), linked);
+
+            for (int i = 0; i < rightNextPage->recordCount(); ++i) {
+                page->append(rightNextPage->record(i), page->hasLinks() ? rightNextPage->link(i) : -1);
+            }
+            parentPage->relink(parentRecordPos+1, page->index());
+            if (page->hasLinks()) page->relink((int)page->recordCount(), rightNextPage->lastLink());
+            _fileStorage.freePage(rightNextPage);
+            parentPage->remove(parentRecordPos);
+
+        } else {
+
+            int linked = -1;
+            if (page->hasLinks())  linked = leftPrevPage->lastLink();
+            page->insert(0, parentPage->record(parentRecordPos-1), linked);
+
+            for (int i = (int)leftPrevPage->recordCount()-1; i >= 0; --i) {
+                page->insert(0, leftPrevPage->record(i), page->hasLinks() ? leftPrevPage->link(i) : -1);
+            }
+            _fileStorage.freePage(leftPrevPage);
+            parentPage->remove(parentRecordPos-1);
+        }
+
+        ret = true;
+    }
+
+    _fileStorage.writePage(parentPage);
+    _fileStorage.writePage(page);
+    _unloadPage(leftPrevPage);
+    _unloadPage(rightNextPage);
+    _unloadPage(parentPage);
+
+    return ret;
+}
+
+
 db_data_entry mydb_database::_copyDataFromLoadedPage(db_data_entry src) const
 {
     return db_data_entry(_copyDataFromLoadedPage(src.key()), _copyDataFromLoadedPage(src.value()));
@@ -254,7 +369,7 @@ void mydb_database::_dump(std::ostringstream &info, int pageId) const
 {
     db_page *page = _loadPage(pageId);
     info << "page #" << pageId <<  ": (has_links=" << page->hasLinks() << "; is_full="
-        << page->isFull()  << ") " << std::endl;
+        << page->isFull()  << "; is_minimally_filled=" << page->isMinimallyFilled()  << ") " << std::endl;
 
     for (auto elementIt = page->begin(); elementIt != page->end(); ++elementIt) {
         if (page->hasLinks())  info << "\t[" << elementIt.link() << "] " << std::endl;
@@ -278,75 +393,30 @@ void mydb_database::_dump(std::ostringstream &info, int pageId) const
 
 void mydb_database::remove(binary_data key)
 {
-    record_lookup_result lookupResult = _rKeyLookup(_fileStorage.rootPageId(), -1, -1, key);
-    if (lookupResult.empty()) {
-        throw 1; // todo report deleting not existing key
-    }
-
-    db_page *page = _loadPage(lookupResult.requestedRecord.pageId);
-    bool hasLinks = page->hasLinks();
-    _unloadPage(page);
-
-    if (hasLinks)  _removeFromNode(lookupResult);
-    else           _removeFromLeaf(lookupResult);
+    _rKeyErasingLookup(_fileStorage.rootPageId(), -1, -1, key);
 }
 
 
-void mydb_database::_removeFromLeaf(const mydb_database::record_lookup_result &lookupResult)
+bool mydb_database::_removeFromLeaf(const mydb_database::record_lookup_result &lookupResult)
 {
     db_page *page = _loadPage(lookupResult.requestedRecord.pageId);
     page->remove(lookupResult.requestedRecord.inPagePosition);
     if (page->isMinimallyFilled()) {
         _fileStorage.writePage(page);
         _unloadPage(page);
-        return;
+        return false;
     }
 
+    // not a real luck((  we need to take effort to stabilize the tree
     int rightNextPageId = -1, leftPrevPageId = -1;
     db_page *parentPage = _findNeighbours(lookupResult.parentRecord, leftPrevPageId, rightNextPageId);
     assert(rightNextPageId != -1 || leftPrevPageId != -1);
+    db_page *leftPrevPage  = rightNextPageId == -1 ? nullptr : _loadPage(rightNextPageId);
+    db_page *rightNextPage = leftPrevPageId  == -1 ? nullptr : _loadPage(leftPrevPageId);
 
-    bool rotationSucceeded = true;
-    db_page *leftPrevPage = nullptr, *rightNextPage = nullptr;
-
-    if (leftPrevPageId != -1) {
-        leftPrevPage = _loadPage(leftPrevPageId);
-        int leftPrevMedianPos = (int)leftPrevPage->recordCount() - 1;
-        if (leftPrevPage->willRemainMinimallyFilledWithout(leftPrevMedianPos)) {
-
-            db_data_entry medianElement = _copyDataFromLoadedPage(leftPrevPage->record(leftPrevMedianPos));
-            leftPrevPage->remove(leftPrevMedianPos);
-            _unloadPage(leftPrevPage);
-
-            page->insert(0, parentPage->record(lookupResult.parentRecord.inPagePosition));
-            /*parentPage->replace(lookupResult.parentRecord.inPagePosition, medianElement,
-                    parentPage->link(lookupResult.parentRecord.inPagePosition));*/
-        } else {
-            rotationSucceeded = false;
-        }
-    } else {     // we assume here that rightNextPageId != -1
-
-        rightNextPage = _loadPage(leftPrevPageId);
-        int rightNextMedianPos = 0;
-        if (rightNextPage->willRemainMinimallyFilledWithout(rightNextMedianPos)) {
-
-            db_data_entry medianElement = _copyDataFromLoadedPage(rightNextPage->record(rightNextMedianPos));
-            rightNextPage->remove(rightNextMedianPos);
-            _unloadPage(rightNextPage);
-
-            page->insert((int)page->recordCount(), parentPage->record(lookupResult.parentRecord.inPagePosition));
-            /*parentPage->replace(lookupResult.parentRecord.inPagePosition, medianElement,
-                    parentPage->link(lookupResult.parentRecord.inPagePosition));*/
-        } else {
-            rotationSucceeded = false;
-        }
-    }
-
-
+    bool rotationSucceeded = _tryTakeFromNearest(page, parentPage, 0, leftPrevPage, rightNextPage);
     if (!rotationSucceeded) {
-        if (leftPrevPageId != -1) {
-            throw 100;
-        }
+
     }
 
     _fileStorage.writePage(parentPage);
@@ -363,7 +433,7 @@ void mydb_database::_removeFromLeaf(const mydb_database::record_lookup_result &l
 
 void mydb_database::_removeFromNode(const mydb_database::record_lookup_result &lookupResult)
 {
-    throw 15;
+    throw std::runtime_error("not implemented");
 }
 
 
@@ -402,7 +472,6 @@ void mydb_database::_dumpSortedKeys(std::ostringstream &info, int pageId) const
             _dumpSortedKeys(info, elementIt.link());
         }
         info << (*elementIt).toString() << std::endl;
-        //info << "\t" << (*elementIt).toString() << " : " << elementIt.value().toString() << std::endl;
     }
     if (page->hasLinks()) {
         info << "\t[" << page->lastLink() << "] " << std::endl;
@@ -410,4 +479,60 @@ void mydb_database::_dumpSortedKeys(std::ostringstream &info, int pageId) const
     }
 
     _unloadPage(page);
+}
+
+
+bool mydb_database::_tryTakeFromNearest(db_page *page, db_page *parentPage, int parentRecPos,
+                                        db_page *leftPrevPage, db_page *rightNextPage)
+{
+    if (leftPrevPage != nullptr) {
+        int leftPrevMedianPos = (int)leftPrevPage->recordCount() - 1;
+        if (leftPrevPage->willRemainMinimallyFilledWithout(leftPrevMedianPos)) {
+
+            db_data_entry medianElement = _copyDataFromLoadedPage(leftPrevPage->record(leftPrevMedianPos));
+            int leftLastLink = leftPrevPage->hasLinks() ? leftPrevPage->lastLink() : -1;
+            int leftMedLink = leftPrevPage->hasLinks() ? leftPrevPage->link(leftPrevMedianPos) : -1;
+
+            leftPrevPage->remove(leftPrevMedianPos);
+            if (leftPrevPage->hasLinks()) leftPrevPage->relink((int)leftPrevPage->recordCount(), leftMedLink);
+            _fileStorage.writePage(leftPrevPage);
+
+            page->insert(0, parentPage->record(parentRecPos-1), leftLastLink);
+            parentPage->replace(parentRecPos-1, medianElement,
+                    parentPage->link(parentRecPos-1));
+
+            return true;
+        }
+    } else {     // I assume here that rightNextPageId != -1
+
+        int rightNextMedianPos = 0;
+        if (rightNextPage->willRemainMinimallyFilledWithout(rightNextMedianPos)) {
+
+            db_data_entry medianElement = _copyDataFromLoadedPage(rightNextPage->record(rightNextMedianPos));
+            int rightMedLink = rightNextPage->hasLinks() ? rightNextPage->link(rightNextMedianPos) : -1;
+            rightNextPage->remove(rightNextMedianPos);
+            _fileStorage.writePage(rightNextPage);
+
+            page->insert((int)page->recordCount(), parentPage->record(parentRecPos), page->hasLinks() ? page->lastLink() : -1);
+            if (page->hasLinks()) page->relink((int)page->recordCount(), rightMedLink);
+            parentPage->replace(parentRecPos, medianElement,
+                    parentPage->link(parentRecPos));
+
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+void mydb_database::_removeEmptyRoot()
+{
+    assert(_rootPage->hasLinks());
+    if (_rootPage->recordCount() > 0) return;
+
+    _fileStorage.changeRootPage(_rootPage->lastLink());
+    _fileStorage.freePage(_rootPage);
+    delete _rootPage;
+    _rootPage = _fileStorage.loadPage(_fileStorage.rootPageId());
 }

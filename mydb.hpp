@@ -45,12 +45,18 @@ private:
 private:
     record_lookup_result _rKeyLookup(int pageId, int parentPageId, int parentRecordPos, binary_data key);
     void _rKeyInsertionLookup(int pageId, int parentPageId, const db_data_entry &element);
+    bool _rKeyErasingLookup(int pageId, int parentPageId, int parentRecordPos, const binary_data &element);
     void _tryInsertInPage(int pageId, int parentPageId, const db_data_entry &element);
+    void _tryEraseFromPage(int pageId, int parentPageId, int position);
     db_page* _splitPage(db_page *page, int parentPageId, const db_data_entry &element);
+    bool _makePageMinimallyFull(db_page *page, int parentPageId, int parentRecordPos, const binary_data &element);
     void _newRoot(db_data_entry element, int leftLink, int rightLink);
-    void _removeFromLeaf(const record_lookup_result &lookupResult);
+    void _removeEmptyRoot();
+    bool _removeFromLeaf(const record_lookup_result &lookupResult);
     void _removeFromNode(const record_lookup_result &lookupResult);
     db_page * _findNeighbours(const record_internal_id& parentRecord, int& leftPrevPageId, int& rightNextPageId);
+    bool _tryTakeFromNearest(db_page *page, db_page *parentPage, int parentRecPos,
+                             db_page *leftPrevPage, db_page *rightNextPage);
 
     db_page *_loadPage(int pageId) const;
     void _unloadPage(db_page *page) const;

@@ -253,10 +253,10 @@ db_page *db_file::_loadPage(int pageIndex) const
 }
 
 
-void db_file::changeRootPage(db_page *page)
+void db_file::changeRootPage(int pageIndex)
 {
-    assert(page != nullptr);
+    assert(pageIndex >= 0 && pageIndex < _maxPageCount);
 
-    _rootPageId = page->index();
+    _rootPageId = pageIndex;
     rawFileWrite(2*sizeof(int32_t), &_rootPageId, sizeof(int32_t));
 }

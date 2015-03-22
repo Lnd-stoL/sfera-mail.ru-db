@@ -39,24 +39,22 @@ int main (int argc, char** argv)
     binary_data tk14("b1djhjkkkfdsgasdfsdfasdfkkkkkkkkfffffffffffffffffkaaaaaa");
     binary_data tv("test value");
 
-    //db.insert(tk1, tv);
-    //db.insert(tk2, tv);
-    //db.insert(tk3, tv);
-    //db.insert(tk4, tv);
-    //db.insert(tk5, tv);
-    //db.insert(tk0, tv);
-    //db.insert(tk6, tv);
-    //db.insert(tk7, tv);
-    //cout << db.dump() << endl;
-    //db.insert(tk8, tv);
-    //db.insert(tk9, tv);
-
-    //db.insert(tk10, tv);
-    //db.insert(tk11, tv);
-    //db.insert(tk12, tv);
+    db.insert(tk1, tv);
+    db.insert(tk2, tv);
+    db.insert(tk3, tv);
+    db.insert(tk4, tv);
+    db.insert(tk5, tv);
+    db.insert(tk0, tv);
+    db.insert(tk6, tv);
+    db.insert(tk7, tv);
+    db.insert(tk8, tv);
+    db.insert(tk9, tv);
+    db.insert(tk10, tv);
+    db.insert(tk11, tv);
+    db.insert(tk12, tv);
     //db.insert(tk13, tv);
     //db.insert(tk14, tv);
-
+/*
     for (int i = 0; i < K; ++i) {
         db.insert(ik[i], tv);
     }
@@ -72,8 +70,16 @@ int main (int argc, char** argv)
     std::cout << "found keys: " << found << std::endl;
     //db.insert(binary_data("--aaaaaaaa"), tv);
 
+*/
+
     std::cout << db.dump() << endl;
-    std::cout << "found keys: " << found << std::endl;
+    db.remove(tk5);
+    db.remove(tk0);
+    db.remove(tk1);
+    db.remove(tk2);
+    db.remove(tk3);
+    std::cout << db.dump() << endl;
+  //  std::cout << "found keys: " << found << std::endl;
    /* std::cout << ik[K].toString() << endl;
     db.insert(ik[K], tv);
 

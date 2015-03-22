@@ -312,7 +312,7 @@ void db_page::remove(int position)
 
 bool db_page::isMinimallyFilled() const
 {
-    return double(_freeBytes()) <= double(_pageSize) * 0.7;
+    return double(_freeBytes()) <= double(_pageSize) * 0.4;
 }
 
 
@@ -381,4 +381,19 @@ db_page *db_page::splitEquispace(db_page *rightPage, int& medianPosition)
 bool db_page::canReplace(int position, binary_data newData) const
 {
     return newData.length() - _recordIndex(position).valueLength <= _freeBytes();
+}
+
+
+void db_page::replace(int position, const db_data_entry &data, int linked)
+{
+    assert(position >= 0 && position < _recordCount);
+
+    remove(position);
+    insert(position, data, linked);
+}
+
+
+void db_page::append(db_data_entry data, int linked)
+{
+    insert((int)_recordCount, data, linked);
 }

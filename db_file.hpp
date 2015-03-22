@@ -74,7 +74,7 @@ public:
     int allocPage();
     void freePage(db_page *page);
 
-    void changeRootPage(db_page *page);
+    void changeRootPage(int pageIndex);
 
     const mydb_internal_config& config() const  { return _basicConfig; }
     int rootPageId() const  { return _rootPageId; }
