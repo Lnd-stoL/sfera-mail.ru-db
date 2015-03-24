@@ -8,9 +8,9 @@ struct DBT {
 struct DB {
 	/* Public API */
 	int (*close)(struct DB *db);
-	int (*del)(struct DB *db, struct DBT *key);
-	int (*get)(struct DB *db, struct DBT *key, struct DBT *data);
-	int (*put)(struct DB *db, struct DBT *key, struct DBT *data);
+	int (*delete)(struct DB *db, struct DBT *key);
+	int (*select)(struct DB *db, struct DBT *key, struct DBT *data);
+	int (*insert)(struct DB *db, struct DBT *key, struct DBT *data);
 
 	/* Private API */
 	void *env;
@@ -26,6 +26,6 @@ struct DB *dbcreate(char *path, struct DBC conf);
 struct DB *dbopen  (char *path, struct DBC conf);
 
 int db_close(struct DB *db);
-int db_del(struct DB *, void *, size_t);
-int db_get(struct DB *, void *, size_t, void **, size_t *);
-int db_put(struct DB *, void *, size_t, void * , size_t  );
+int db_delete(struct DB *, void *, size_t);
+int db_select(struct DB *, void *, size_t, void **, size_t *);
+int db_insert(struct DB *, void *, size_t, void * , size_t  );

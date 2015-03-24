@@ -1,0 +1,8 @@
+---
+get: 20
+put: 80
+del: 80
+shuffle: True
+distrib: "uniform"
+ops: 10000
+

@@ -69,7 +69,11 @@ int db_get(mydb_database *db, void *key, size_t keyLength, void **pVal, size_t *
 
 	try {
 		binary_data result = db->get(binary_data(key, keyLength));
-		if (!result.valid())  return 1;
+		if (!result.valid()) {
+			*pVal = nullptr;
+			*pValLength = 0;
+			return 1;
+		}
 
 		*pVal = result.dataPtr();
 		*pValLength = result.length();

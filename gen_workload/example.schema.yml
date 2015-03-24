@@ -1,0 +1,7 @@
+---
+get: 90
+put: 10
+del: 00
+distrib: 'oldest'
+ops: 100000
+...

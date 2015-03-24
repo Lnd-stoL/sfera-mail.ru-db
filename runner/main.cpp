@@ -34,7 +34,7 @@ int clock_gettime(int flag, struct timespec *tspec) {
 int main(int argc, char *argv[]) {
 	std::string def_so_name = "./libmydb.so";
 	std::string def_db_name = "./mydbpath";
-	std::string def_wl_name = "../workload.uni";
+	std::string def_wl_name = "../workloads/workload.uni";
 
 	if (argc > 1) def_wl_name = std::string(argv[1]);
 	if (argc > 2) def_so_name = std::string(argv[2]);
@@ -44,7 +44,6 @@ int main(int argc, char *argv[]) {
 	std::ofstream out ((def_wl_name + ".out.yours").c_str());
 	struct timespec t1, t2; memset(&t1, 0, sizeof(t1)); memset(&t2, 0, sizeof(t2));
 	uint64_t time = 0;
-	int putFails = 0;
 	for (YAML::const_iterator it = workload.begin(); it != workload.end(); ++it) {
 		auto op = it->as<std::vector<std::string>>();
 		int retval = 0;
@@ -53,13 +52,12 @@ int main(int argc, char *argv[]) {
 			clock_gettime(CLOCK_MONOTONIC, &t1);
 			retval = db->put(op[1], op[2]);
 			clock_gettime(CLOCK_MONOTONIC, &t2);
-			if (retval != 0)  ++putFails;
 			time += (t2.tv_sec - t1.tv_sec) * 1e9 + (t2.tv_nsec - t1.tv_nsec);
 
 		} else if (op[0] == std::string("get")) {
 			std::cout << "get " << op[1] << std::endl;
-			char *val;
-			size_t val_size;
+			char *val = nullptr;
+			size_t val_size = 0;
 			clock_gettime(CLOCK_MONOTONIC, &t1);
 			retval = db->get(op[1], &val, &val_size);
 			clock_gettime(CLOCK_MONOTONIC, &t2);
@@ -69,17 +67,20 @@ int main(int argc, char *argv[]) {
 			}
 
 		} else if (op[0] == std::string("del")) {
-			std::cout << "del " << op[1] << std::endl;
-			clock_gettime(CLOCK_MONOTONIC, &t1);
-			retval = db->del(op[1]);
-			clock_gettime(CLOCK_MONOTONIC, &t2);
-			time += (t2.tv_sec - t1.tv_sec) * 1e9 + (t2.tv_nsec - t1.tv_nsec);
+            std::cout << "del " << op[1] << std::endl;
+			char *val = NULL;
+			size_t val_size = 0;
+ 			clock_gettime(CLOCK_MONOTONIC, &t1);
+ 			retval = db->del(op[1]);
+ 			clock_gettime(CLOCK_MONOTONIC, &t2);
+ 			time += (t2.tv_sec - t1.tv_sec) * 1e9 + (t2.tv_nsec - t1.tv_nsec);
+			db->get(op[1], &val, &val_size);
+			if (!val) out << "delete is ok\n";
 		} else {
 			std::cout << "bad op\n";
 		}
 	}
 
-    std::cout << "Put fails: " << putFails << std::endl;
 	std::cout << "Overall lib time: " << ((double )time / 1e9) << "\n";
 
 	delete db;

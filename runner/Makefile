@@ -8,17 +8,20 @@ all:
 test_uni:
 	rm -rf ./mydbpath
 	./test_speed ../workloads/workload.uni
-#	diff ../workload.uni.out ../workload.uni.out.yours >> diffs
+	diff ../workloads/workload.uni.out ../workloads/workload.uni.out.yours >> diffs
+	cat ./diffs
 
 test_old:
 	rm -rf ./mydbpath
 	./test_speed ../workloads/workload.old
-#	diff ../workload.old.out ../workload.old.out.yours >> diffs
+	diff ../workloads/workload.old.out ../workloads/workload.old.out.yours >> diffs
+	cat ./diffs
 
 test_lat:
 	rm -rf ./mydbpath
 	./test_speed ../workloads/workload.lat
-#	diff ../workload.lat.out ../workload.lat.out.yours >> diffs
+	diff ../workloads/workload.lat.out ../workloads/workload.lat.out.yours >> diffs
+	cat ./diffs
 
 test_all:
 	./test.sh

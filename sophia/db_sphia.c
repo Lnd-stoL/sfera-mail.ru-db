@@ -16,7 +16,7 @@ int sph_close(struct DB *db) {
 	return 0;
 }
 
-int sph_del(struct DB *db, struct DBT *key) {
+int sph_delete(struct DB *db, struct DBT *key) {
 	int rc = sp_delete(db->db, key->data, key->size);
 	if (rc == -1) {
 		printf("error: %s\n", sp_error(db->env));
@@ -25,7 +25,7 @@ int sph_del(struct DB *db, struct DBT *key) {
 	return 0;
 }
 
-int sph_get(struct DB *db, struct DBT *key, struct DBT *data) {
+int sph_select(struct DB *db, struct DBT *key, struct DBT *data) {
 	int rc = sp_get(db->db, key->data, key->size, &data->data, &data->size);
 	if (rc == -1) {
 		printf("error: %s\n", sp_error(db->env));
@@ -34,7 +34,7 @@ int sph_get(struct DB *db, struct DBT *key, struct DBT *data) {
 	return 0;
 }
 
-int sph_put(struct DB *db, struct DBT *key, struct DBT *data) {
+int sph_insert(struct DB *db, struct DBT *key, struct DBT *data) {
 	int rc = sp_set(db->db, key->data, key->size, data->data, data->size);
 	if (rc == -1) {
 		printf("error: %s\n", sp_error(db->env));
@@ -64,9 +64,9 @@ struct DB *dbcreate(char *path, struct DBC conf) {
 		printf("error: %s\n", sp_error(db->env));
 		assert(0);
 	}
-	db->get   = sph_get;
-	db->put   = sph_put;
-	db->del   = sph_del;
+	db->select   = sph_select;
+	db->insert   = sph_insert;
+	db->delete   = sph_delete;
 	db->close = sph_close;
 	return db;
 }
@@ -77,28 +77,28 @@ int db_close(struct DB *db) {
 	return db->close(db);
 }
 
-int db_del(struct DB *db, void *key, size_t key_len) {
+int db_delete(struct DB *db, void *key, size_t key_len) {
 	struct DBT keyt = {
 		.data = key,
 		.size = key_len
 	};
-	return db->del(db, &keyt);
+	return db->delete(db, &keyt);
 }
 
-int db_get(struct DB *db, void *key, size_t key_len,
+int db_select(struct DB *db, void *key, size_t key_len,
 		void **val, size_t *val_len) {
 	struct DBT keyt = {
 		.data = key,
 		.size = key_len
 	};
 	struct DBT valt = {0, 0};
-	int rc = db->get(db, &keyt, &valt);
+	int rc = db->select(db, &keyt, &valt);
 	*val = valt.data;
 	*val_len = valt.size;
 	return rc;
 }
 
-int db_put(struct DB *db, void *key, size_t key_len,
+int db_insert(struct DB *db, void *key, size_t key_len,
 		void *val, size_t val_len) {
 	struct DBT keyt = {
 		.data = key,
@@ -108,5 +108,5 @@ int db_put(struct DB *db, void *key, size_t key_len,
 		.data = val,
 		.size = val_len
 	};
-	return db->put(db, &keyt, &valt);
+	return db->insert(db, &keyt, &valt);
 }

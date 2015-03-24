@@ -91,7 +91,6 @@ class Workload(object):
         'del': 30,
         'ops': 1000,
         'distrib': 'none',
-        'shuffle': False,
         'key_size': 20,
         'min_val_size': 128,
         'max_val_size': 256,
@@ -124,8 +123,6 @@ class Workload(object):
             self.ops = cfg.get('ops', self.wl_defaults['ops'])
             self.distrib = cfg.get('distrib', self.wl_defaults['distrib']).lower()
             assert(self.distrib in self.avail_distrib)
-            self.shuffle = cfg.get('shuffle', self.wl_defaults['shuffle'])
-            assert(isinstance(self.shuffle, bool))
             self.key_size = cfg.get('key_size', self.wl_defaults['key_size'])
             self.min_val_size = cfg.get('min_val_size', self.wl_defaults['min_val_size'])
             self.max_val_size = cfg.get('max_val_size', self.wl_defaults['max_val_size'])
@@ -146,19 +143,13 @@ class Workload(object):
         self.opset.extend([0] * long(self.ops*self.put/100))
         self.opset.extend([1] * long(self.ops*self.get/100))
         self.opset.extend([2] * long(self.ops*self.delete/100))
-        if self.shuffle:
-            random.shuffle(self.opset)
 
     def generate_insert(self):
         self.insert_count = xrange()
 
     def generate(self):
         self.keys = open(self.key_file, 'r').read().split('\n')
-        if self.shuffle:
-            random.shuffle(self.keys)
         self.vals = open(self.val_file, 'r').read().split('\n')
-        if self.shuffle:
-            random.shuffle(self.vals)
         put = self.distrib_class(self.keys, self.vals)
         get = self.distrib_class(self.keyset)
         delete = self.distrib_class(self.keyset)
