@@ -178,22 +178,9 @@ bool mydb_database::_rKeyErasingLookup(int pageId, int parentPageId, int parentR
 
     if (keyIt != page->end() && _keysEqual(elementKey, *keyIt)) {
         if (!page->hasLinks()) {
-
-            page->remove(keyIt.position());
-            if (page->isMinimallyFilled()) {
-                _fileStorage.writePage(page);
-                _unloadPage(page);
-                return false;
-            }
-
-            bool ret = _makePageMinimallyFull(page, parentPageId, parentRecordPos, elementKey);
-            _unloadPage(page);
-            return ret;
-
+            return _removeFromLeaf(page, keyIt.position(), parentPageId, parentRecordPos);
         } else {
-
-
-            return false;
+            return _removeFromNode(page, parentPageId, parentRecordPos, keyIt.position());
         }
     }
 
@@ -202,21 +189,11 @@ bool mydb_database::_rKeyErasingLookup(int pageId, int parentPageId, int parentR
     }
 
     int nextPageId = keyIt.link();
-    int parPageId = page->index();
+    int nextParPageId = page->index();
     _unloadPage(page);
 
-    if (_rKeyErasingLookup(nextPageId, parPageId, keyIt.position(), elementKey)) {    // we need to check the page
-        if (pageId != _fileStorage.rootPageId()) {
-            page = _loadPage(pageId);
-            bool ret = false;
-            if (!page->isMinimallyFilled()) {
-                ret = _makePageMinimallyFull(page, parentPageId, parentRecordPos, elementKey);
-            }
-            _unloadPage(page);
-            return ret;
-
-        } else _removeEmptyRoot();
-        return false;
+    if (_rKeyErasingLookup(nextPageId, nextParPageId, keyIt.position(), elementKey)) {    // we need to check the page
+        return _testRebalanceAfterDelete(nextParPageId, parentPageId, parentRecordPos);
     }
     return false;
 }
@@ -246,15 +223,6 @@ void mydb_database::_tryInsertInPage(int pageId, int parentPageId, const db_data
 
     auto insertionIt = std::lower_bound(page->begin(), page->end(), element.key(), _binaryKeyComparer);
     page->insert(insertionIt, element);
-    _fileStorage.writePage(page);
-    _unloadPage(page);
-}
-
-
-void mydb_database::_tryEraseFromPage(int pageId, int parentPageId, int position)
-{
-    db_page *page = _loadPage(pageId);
-    page->remove(position);
     _fileStorage.writePage(page);
     _unloadPage(page);
 }
@@ -293,8 +261,7 @@ db_page *mydb_database::_splitPage(db_page *page, int parentPageId, const db_dat
 }
 
 
-bool mydb_database::_makePageMinimallyFull(db_page *page, int parentPageId,
-                                           int parentRecordPos, const binary_data &elementKey)
+bool mydb_database::_makePageMinimallyFilled(db_page *page, int parentPageId, int parentRecordPos)
 {
     int rightNextPageId = -1, leftPrevPageId = -1;
     db_page *parentPage = _findNeighbours(record_internal_id(parentPageId, parentRecordPos),
@@ -397,43 +364,20 @@ void mydb_database::remove(binary_data key)
 }
 
 
-bool mydb_database::_removeFromLeaf(const mydb_database::record_lookup_result &lookupResult)
+bool mydb_database::_removeFromLeaf(db_page *page, int recPos, int parentPageId, int parentRecordPos)
 {
-    db_page *page = _loadPage(lookupResult.requestedRecord.pageId);
-    page->remove(lookupResult.requestedRecord.inPagePosition);
+    assert(!page->hasLinks());
+
+    page->remove(recPos);
     if (page->isMinimallyFilled()) {
         _fileStorage.writePage(page);
         _unloadPage(page);
         return false;
     }
 
-    // not a real luck((  we need to take effort to stabilize the tree
-    int rightNextPageId = -1, leftPrevPageId = -1;
-    db_page *parentPage = _findNeighbours(lookupResult.parentRecord, leftPrevPageId, rightNextPageId);
-    assert(rightNextPageId != -1 || leftPrevPageId != -1);
-    db_page *leftPrevPage  = rightNextPageId == -1 ? nullptr : _loadPage(rightNextPageId);
-    db_page *rightNextPage = leftPrevPageId  == -1 ? nullptr : _loadPage(leftPrevPageId);
-
-    bool rotationSucceeded = _tryTakeFromNearest(page, parentPage, 0, leftPrevPage, rightNextPage);
-    if (!rotationSucceeded) {
-
-    }
-
-    _fileStorage.writePage(parentPage);
-    _fileStorage.writePage(page);
-    if (leftPrevPageId  != -1)  _fileStorage.writePage(leftPrevPage);
-    if (rightNextPageId != -1)  _fileStorage.writePage(rightNextPage);
-
-    _unloadPage(leftPrevPage);
-    _unloadPage(rightNextPage);
-    _unloadPage(parentPage);
+    bool ret = _makePageMinimallyFilled(page, parentPageId, parentRecordPos);
     _unloadPage(page);
-}
-
-
-void mydb_database::_removeFromNode(const mydb_database::record_lookup_result &lookupResult)
-{
-    throw std::runtime_error("not implemented");
+    return ret;
 }
 
 
@@ -535,4 +479,77 @@ void mydb_database::_removeEmptyRoot()
     _fileStorage.freePage(_rootPage);
     delete _rootPage;
     _rootPage = _fileStorage.loadPage(_fileStorage.rootPageId());
+}
+
+
+bool mydb_database::_removeFromNode(db_page *nodePage, int parentPageId, int parentRecPos, int recPos)
+{
+    db_data_entry mostLeftElement;
+    int nextPageId = nodePage->link(recPos+1);
+    int nextParPageId = nodePage->index();
+    _unloadPage(nodePage);
+
+    _rRemoveFromNodeR(nextPageId, nextParPageId, recPos+1, mostLeftElement, false);
+
+    nodePage = _loadPage(nextParPageId);
+    nodePage->replace(recPos, mostLeftElement, nodePage->link(recPos));
+    _fileStorage.writePage(nodePage);
+    _unloadPage(nodePage);
+    mostLeftElement.free();
+
+    if (_testRebalanceAfterDelete(nextPageId, nextParPageId, recPos+1)) {
+        return  _testRebalanceAfterDelete(nextParPageId, parentPageId, parentRecPos);
+    }
+}
+
+
+bool mydb_database::_rRemoveFromNodeR(int pageId, int parentPageId, int parentRecPos, db_data_entry &element, bool canRebalance)
+{
+    db_page *page = _loadPage(pageId);
+    auto keyIt = page->begin();
+
+    if (!page->hasLinks()) {
+        element = _copyDataFromLoadedPage(page->record(keyIt.position()));
+        page->remove(keyIt.position());
+        if (page->isMinimallyFilled()) {
+            _fileStorage.writePage(page);
+            _unloadPage(page);
+            return false;
+        }
+
+        if (canRebalance) {
+            bool ret = _makePageMinimallyFilled(page, parentPageId, parentRecPos);
+            _unloadPage(page);
+            return ret;
+        } else {
+            _fileStorage.writePage(page);
+            _unloadPage(page);
+            return false;
+        }
+    }
+
+    int nextPageId = keyIt.link();
+    int nextParPageId = page->index();
+    _unloadPage(page);
+
+    if (_rRemoveFromNodeR(nextPageId, nextParPageId, keyIt.position(), element, true)) {
+        if (canRebalance) return _testRebalanceAfterDelete(pageId, parentPageId, parentRecPos);
+    }
+    return false;
+}
+
+
+bool mydb_database::_testRebalanceAfterDelete(int pageId, int parentPageId, int parentRecPos)
+{
+    if (pageId != _fileStorage.rootPageId()) {
+        db_page *page = _loadPage(pageId);
+        bool ret = false;
+        if (!page->isMinimallyFilled()) {
+            ret = _makePageMinimallyFilled(page, parentPageId, parentRecPos);
+        }
+        _unloadPage(page);
+        return ret;
+
+    } else _removeEmptyRoot();
+    return false;
 }

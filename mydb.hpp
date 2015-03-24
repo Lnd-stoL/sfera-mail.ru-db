@@ -47,13 +47,14 @@ private:
     void _rKeyInsertionLookup(int pageId, int parentPageId, const db_data_entry &element);
     bool _rKeyErasingLookup(int pageId, int parentPageId, int parentRecordPos, const binary_data &element);
     void _tryInsertInPage(int pageId, int parentPageId, const db_data_entry &element);
-    void _tryEraseFromPage(int pageId, int parentPageId, int position);
     db_page* _splitPage(db_page *page, int parentPageId, const db_data_entry &element);
-    bool _makePageMinimallyFull(db_page *page, int parentPageId, int parentRecordPos, const binary_data &element);
+    bool _makePageMinimallyFilled(db_page *page, int parentPageId, int parentRecordPos);
     void _newRoot(db_data_entry element, int leftLink, int rightLink);
     void _removeEmptyRoot();
-    bool _removeFromLeaf(const record_lookup_result &lookupResult);
-    void _removeFromNode(const record_lookup_result &lookupResult);
+    bool _removeFromLeaf(db_page *page, int recPos, int parentPageId, int parentRecordPos);
+    bool _removeFromNode(db_page *nodePage, int parentPageId, int parentRecPos, int recPos);
+    bool _rRemoveFromNodeR(int pageId, int parentPageId, int parentRecPos, db_data_entry &element, bool canRebalance);
+    bool _testRebalanceAfterDelete(int pageId, int parentPageId, int parentRecPos);
     db_page * _findNeighbours(const record_internal_id& parentRecord, int& leftPrevPageId, int& rightNextPageId);
     bool _tryTakeFromNearest(db_page *page, db_page *parentPage, int parentRecPos,
                              db_page *leftPrevPage, db_page *rightNextPage);

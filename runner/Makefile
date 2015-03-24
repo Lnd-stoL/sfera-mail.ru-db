@@ -12,12 +12,12 @@ test_uni:
 
 test_old:
 	rm -rf ./mydbpath
-	./test_speed ../workload.old
+	./test_speed ../workloads/workload.old
 #	diff ../workload.old.out ../workload.old.out.yours >> diffs
 
 test_lat:
 	rm -rf ./mydbpath
-	./test_speed ../workload.lat
+	./test_speed ../workloads/workload.lat
 #	diff ../workload.lat.out ../workload.lat.out.yours >> diffs
 
 test_all:

@@ -312,7 +312,7 @@ void db_page::remove(int position)
 
 bool db_page::isMinimallyFilled() const
 {
-    return double(_freeBytes()) <= double(_pageSize) * 0.4;
+    return double(_freeBytes()) <= double(_pageSize) * 0.7;
 }
 
 

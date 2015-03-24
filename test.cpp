@@ -12,10 +12,10 @@ using std::endl;
 int main (int argc, char** argv)
 {
     //mydb_database db("storage.db");
-    mydb_database db("storage.db", 50000000, mydb_internal_config(512));
+    mydb_database db("storage.db", 50000000, mydb_internal_config(2024));
 
     std::vector<binary_data> tk;
-    int K = 27000;
+    int K = 10000;
     for (int i = 1; i <= K; ++i) {
         tk.push_back(binary_data(std::to_string(i) + "aaaaaaaaaa"));
     }
@@ -52,32 +52,33 @@ int main (int argc, char** argv)
     db.insert(tk10, tv);
     db.insert(tk11, tv);
     db.insert(tk12, tv);
-    //db.insert(tk13, tv);
-    //db.insert(tk14, tv);
-/*
+    db.insert(tk13, tv);
+    db.insert(tk14, tv);
+
+    db.remove(tk0);
+
     for (int i = 0; i < K; ++i) {
         db.insert(ik[i], tv);
     }
 
+    //std::cout << db.dump() << endl;
+    db.remove(tk4);
+    db.remove(tk5);
+    db.remove(tk8);
+    db.remove(tk9);
+    db.remove(tk[0]);
+
     int found = 0;
     for (int i = 0; i < K; ++i) {
-        auto r = db.get(ik[i]);
+        auto r = db.get(tk[i]);
         if (r.valid()) ++found;
         if (!r.valid()) {
-            std::cout << "error getting " << ik[i].toString() << std::endl;
+            std::cout << "error getting " << tk[i].toString() << std::endl;
         }
     }
     std::cout << "found keys: " << found << std::endl;
     //db.insert(binary_data("--aaaaaaaa"), tv);
 
-*/
-
-    std::cout << db.dump() << endl;
-    db.remove(tk5);
-    db.remove(tk0);
-    db.remove(tk1);
-    db.remove(tk2);
-    db.remove(tk3);
     std::cout << db.dump() << endl;
   //  std::cout << "found keys: " << found << std::endl;
    /* std::cout << ik[K].toString() << endl;

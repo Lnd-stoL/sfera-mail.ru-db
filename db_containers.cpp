@@ -82,3 +82,17 @@ size_t db_data_entry::length() const
 {
     return _key.length() + _value.length();
 }
+
+
+bool binary_data::free()
+{
+    ::free(_dataPtr);
+    _dataPtr = nullptr;
+}
+
+
+bool db_data_entry::free()
+{
+    _key.free();
+    _value.free();
+}
