@@ -20,17 +20,17 @@ Database::Database(const char *so_path, const char *db_path) {
 		std::cout << "Error while loading dbcreate: " << dlerror() << '\n';
 		return;
 	}
-	this->put_function = (db_put_t )dlsym(this->so_handle, "db_put");
+	this->put_function = (db_put_t )dlsym(this->so_handle, "db_insert");
 	if (!this->put_function) {
 		std::cout << "Error while loading db_put: " << dlerror() << '\n';
 		return;
 	}
-	this->get_function = (db_get_t )dlsym(this->so_handle, "db_get");
+	this->get_function = (db_get_t )dlsym(this->so_handle, "db_select");
 	if (!this->get_function) {
 		std::cout << "Error while loading db_get: " << dlerror() << '\n';
 		return;
 	}
-	this->del_function = (db_del_t )dlsym(this->so_handle, "db_del");
+	this->del_function = (db_del_t )dlsym(this->so_handle, "db_delete");
 	if (!this->del_function) {
 		std::cout << "Error while loading db_del: " << dlerror() << '\n';
 		return;
@@ -73,8 +73,7 @@ int Database::put(const std::string& key, const std::string& val) {
 
 int Database::get(const std::string& key, char **val, size_t *val_size) {
 	int retval = this->get_function(this->db_object, key.c_str(), key.size(), val, val_size);
-	if (retval != 0)
-		std::cerr << "Error, while getting \"" << key <<  "\"\n";
+	//if (retval != 0) std::cerr << "Error, while getting \"" << key <<  "\"\n";
 	return retval;
 }
 

@@ -3,6 +3,7 @@
 
 #include <cassert>
 #include <algorithm>
+#include <glob.h>
 
 //----------------------------------------------------------------------------------------------------------------------
 // page layout brief description
@@ -125,7 +126,7 @@ void db_page::initializeEmpty(bool hasLinks)
 
 bool db_page::isFull() const
 {
-    return double(_freeBytes()) <= double(_pageSize) * 0.3;
+    return double(usedBytes()) / _pageSize * 100 >= maximallyFullPercent;
 }
 
 
@@ -312,7 +313,7 @@ void db_page::remove(int position)
 
 bool db_page::isMinimallyFilled() const
 {
-    return double(_freeBytes()) <= double(_pageSize) * 0.7;
+    return double(usedBytes()) / _pageSize * 100 >= minimallyFullPercent;
 }
 
 
@@ -343,6 +344,7 @@ void db_page::replace(int position, binary_data newValue)
 
     remove(position);
     insert(position, db_data_entry(key, newValue), linked);
+    key.free();
 }
 
 
@@ -396,4 +398,19 @@ void db_page::replace(int position, const db_data_entry &data, int linked)
 void db_page::append(db_data_entry data, int linked)
 {
     insert((int)_recordCount, data, linked);
+}
+
+
+size_t db_page::usedBytes() const
+{
+    return _pageSize - _freeBytes();
+}
+
+
+size_t db_page::usedBytesFor(int position) const
+{
+    assert(position >= 0 && (position < _recordCount  || position <= _recordCount && _hasLinks));
+
+    if (position == _recordCount)  return _recordIndexSize();
+    return _recordIndexSize() + _recordIndex(position).length();
 }

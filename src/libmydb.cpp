@@ -50,7 +50,7 @@ int db_close(mydb_database *db)
 
 
 extern "C"
-int db_del(mydb_database *db, void *key, size_t length)
+int db_delete(mydb_database *db, void *key, size_t length)
 {
 	if (db == nullptr)  return -1;
 
@@ -63,7 +63,7 @@ int db_del(mydb_database *db, void *key, size_t length)
 
 
 extern "C"
-int db_get(mydb_database *db, void *key, size_t keyLength, void **pVal, size_t *pValLength)
+int db_select(mydb_database *db, void *key, size_t keyLength, void **pVal, size_t *pValLength)
 {
 	if (db == nullptr)  return -1;
 
@@ -84,7 +84,7 @@ int db_get(mydb_database *db, void *key, size_t keyLength, void **pVal, size_t *
 
 
 extern "C"
-int db_put(mydb_database *db, void *key, size_t keyLength, void *value, size_t valueLength)
+int db_insert(mydb_database *db, void *key, size_t keyLength, void *value, size_t valueLength)
 {
 	if (db == nullptr)  return -1;
 
@@ -95,3 +95,14 @@ int db_put(mydb_database *db, void *key, size_t keyLength, void *value, size_t v
 	catch_exceptions("db_put", -1);
 }
 
+
+extern "C"
+int db_flush(mydb_database *db)
+{
+	if (db == nullptr)  return -1;
+
+	try {
+
+	}
+	catch_exceptions("db_flush", -1);
+}

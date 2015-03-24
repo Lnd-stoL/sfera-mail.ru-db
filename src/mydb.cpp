@@ -78,7 +78,6 @@ mydb_database::_rKeyLookup(int pageId, int parentPageId, int parentRecordPos, bi
         }
     }
 
-    assert(page->hasLinks());
     int parRecPos = keyIt.position();
     int nextPageId = keyIt.link();
     _unloadPage(page);
@@ -273,34 +272,8 @@ bool mydb_database::_makePageMinimallyFilled(db_page *page, int parentPageId, in
 
     bool ret = false;
     bool rotationSucceeded = _tryTakeFromNearest(page, parentPage, parentRecordPos, leftPrevPage, rightNextPage);
-    if (!rotationSucceeded) {
-
-        if (rightNextPage != nullptr) {
-            int linked = -1;
-            if (page->hasLinks())  linked = page->lastLink();
-            page->append(parentPage->record(parentRecordPos), linked);
-
-            for (int i = 0; i < rightNextPage->recordCount(); ++i) {
-                page->append(rightNextPage->record(i), page->hasLinks() ? rightNextPage->link(i) : -1);
-            }
-            parentPage->relink(parentRecordPos+1, page->index());
-            if (page->hasLinks()) page->relink((int)page->recordCount(), rightNextPage->lastLink());
-            _fileStorage.freePage(rightNextPage);
-            parentPage->remove(parentRecordPos);
-
-        } else {
-
-            int linked = -1;
-            if (page->hasLinks())  linked = leftPrevPage->lastLink();
-            page->insert(0, parentPage->record(parentRecordPos-1), linked);
-
-            for (int i = (int)leftPrevPage->recordCount()-1; i >= 0; --i) {
-                page->insert(0, leftPrevPage->record(i), page->hasLinks() ? leftPrevPage->link(i) : -1);
-            }
-            _fileStorage.freePage(leftPrevPage);
-            parentPage->remove(parentRecordPos-1);
-        }
-
+    if (!rotationSucceeded) {    // so merge the nodes
+        _mergePages(page, parentRecordPos, parentPage, rightNextPage, leftPrevPage);
         ret = true;
     }
 
@@ -311,6 +284,39 @@ bool mydb_database::_makePageMinimallyFilled(db_page *page, int parentPageId, in
     _unloadPage(parentPage);
 
     return ret;
+}
+
+
+void mydb_database::_mergePages(db_page *page, int parentRecordPos, db_page *parentPage, db_page *rightNextPage,
+                                db_page *leftPrevPage)
+{
+    size_t basicResultSize = page->usedBytes() + parentPage->usedBytesFor(parentRecordPos);
+
+    if (rightNextPage != nullptr && rightNextPage->usedBytes() + basicResultSize < page->size()) {
+        int linked = -1;
+        if (page->hasLinks())  linked = page->lastLink();
+        page->append(parentPage->record(parentRecordPos), linked);
+
+        for (int i = 0; i < rightNextPage->recordCount(); ++i) {
+            page->append(rightNextPage->record(i), page->hasLinks() ? rightNextPage->link(i) : -1);
+        }
+        parentPage->relink(parentRecordPos+1, page->index());
+        if (page->hasLinks()) page->relink((int)page->recordCount(), rightNextPage->lastLink());
+        _fileStorage.freePage(rightNextPage);
+        parentPage->remove(parentRecordPos);
+
+    } else if (leftPrevPage->usedBytes() + basicResultSize < page->size()) {
+
+        int linked = -1;
+        if (page->hasLinks())  linked = leftPrevPage->lastLink();
+        page->insert(0, parentPage->record(parentRecordPos-1), linked);
+
+        for (int i = (int)leftPrevPage->recordCount()-1; i >= 0; --i) {
+            page->insert(0, leftPrevPage->record(i), page->hasLinks() ? leftPrevPage->link(i) : -1);
+        }
+        _fileStorage.freePage(leftPrevPage);
+        parentPage->remove(parentRecordPos-1);
+    }
 }
 
 
@@ -445,6 +451,7 @@ bool mydb_database::_tryTakeFromNearest(db_page *page, db_page *parentPage, int 
             parentPage->replace(parentRecPos-1, medianElement,
                     parentPage->link(parentRecPos-1));
 
+            medianElement.free();
             return true;
         }
     } else {     // I assume here that rightNextPageId != -1
@@ -462,6 +469,7 @@ bool mydb_database::_tryTakeFromNearest(db_page *page, db_page *parentPage, int 
             parentPage->replace(parentRecPos, medianElement,
                     parentPage->link(parentRecPos));
 
+            medianElement.free();
             return true;
         }
     }
@@ -503,7 +511,8 @@ bool mydb_database::_removeFromNode(db_page *nodePage, int parentPageId, int par
 }
 
 
-bool mydb_database::_rRemoveFromNodeR(int pageId, int parentPageId, int parentRecPos, db_data_entry &element, bool canRebalance)
+bool mydb_database::_rRemoveFromNodeR(int pageId, int parentPageId, int parentRecPos,
+                                      db_data_entry &element, bool canRebalance)
 {
     db_page *page = _loadPage(pageId);
     auto keyIt = page->begin();

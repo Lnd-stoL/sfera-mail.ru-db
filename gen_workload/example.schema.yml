@@ -1,7 +1,7 @@
 ---
-get: 90
-put: 10
-del: 00
-distrib: 'oldest'
-ops: 100000
+get: 40
+put: 30
+del: 30
+distrib: 'latest'
+ops: 500000
 ...

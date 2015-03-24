@@ -23,5 +23,26 @@ test_lat:
 	diff ../workloads/workload.lat.out ../workloads/workload.lat.out.yours >> diffs
 	cat ./diffs
 
+test_rwd:
+	rm -rf ./mydbpath
+	./test_speed ../workloads/rwd-workloads
+	diff ../workloads/rwd-workloads.out ../workloads/rwd-workloads.out.yours >> diffs
+	cat ./diffs
+
+test_rwd_silent:
+	rm -rf ./mydbpath
+	./test_speed ../workloads/rwd-workloads ./libmydb.so --silent
+	diff ../workloads/rwd-workloads.out ../workloads/rwd-workloads.out.yours >> diffs
+	cat ./diffs
+
+test_rwd_big:
+	rm -rf ./mydbpath
+	./test_speed ../workloads/rwd-big
+
+test_sophia_rwd:
+	rm -rf ./mydbpath
+	./test_speed ../workloads/rwd-workloads ../sophia/libdbsophia.so
+
 test_all:
 	./test.sh
+

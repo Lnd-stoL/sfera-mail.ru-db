@@ -62,6 +62,11 @@ private:
 
 
 private:
+    static const int minimallyFullPercent = 45;
+    static const int maximallyFullPercent = 75;
+
+
+private:
     int  _index;
     mutable size_t  _pageSize = 0;
     uint8_t  *_pageBytes = nullptr;
@@ -115,6 +120,8 @@ public:
     void initializeEmpty(bool hasLinks = false);
     void prepareForWriting();
 
+    size_t usedBytes() const;
+    size_t usedBytesFor(int position) const;
     bool isFull() const;
     bool isMinimallyFilled() const;
     bool willRemainMinimallyFilledWithout(int position) const;

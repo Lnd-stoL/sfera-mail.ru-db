@@ -35,9 +35,11 @@ int main(int argc, char *argv[]) {
 	std::string def_so_name = "./libmydb.so";
 	std::string def_db_name = "./mydbpath";
 	std::string def_wl_name = "../workloads/workload.uni";
+	bool silent = false;
 
 	if (argc > 1) def_wl_name = std::string(argv[1]);
 	if (argc > 2) def_so_name = std::string(argv[2]);
+	if (argc > 3) silent = true;
 
 	Database *db = new Database(def_so_name.c_str(), def_db_name.c_str());
 	YAML::Node workload = YAML::LoadFile((def_wl_name + ".in").c_str());
@@ -48,14 +50,14 @@ int main(int argc, char *argv[]) {
 		auto op = it->as<std::vector<std::string>>();
 		int retval = 0;
 		if (op[0] == std::string("put")) {
-			std::cout << "put " << op[1] << " " << op[2] << std::endl;
+			if (!silent) std::cout << "put " << op[1] << " " << op[2] << std::endl;
 			clock_gettime(CLOCK_MONOTONIC, &t1);
 			retval = db->put(op[1], op[2]);
 			clock_gettime(CLOCK_MONOTONIC, &t2);
 			time += (t2.tv_sec - t1.tv_sec) * 1e9 + (t2.tv_nsec - t1.tv_nsec);
 
 		} else if (op[0] == std::string("get")) {
-			std::cout << "get " << op[1] << std::endl;
+			if (!silent) std::cout << "get " << op[1] << std::endl;
 			char *val = nullptr;
 			size_t val_size = 0;
 			clock_gettime(CLOCK_MONOTONIC, &t1);
@@ -65,9 +67,10 @@ int main(int argc, char *argv[]) {
 			if (retval == 0) {
 				out.write(val, val_size) << "\n";
 			}
+			if (val != nullptr) free(val);
 
 		} else if (op[0] == std::string("del")) {
-            std::cout << "del " << op[1] << std::endl;
+            if (!silent) std::cout << "del " << op[1] << std::endl;
 			char *val = NULL;
 			size_t val_size = 0;
  			clock_gettime(CLOCK_MONOTONIC, &t1);
@@ -75,6 +78,7 @@ int main(int argc, char *argv[]) {
  			clock_gettime(CLOCK_MONOTONIC, &t2);
  			time += (t2.tv_sec - t1.tv_sec) * 1e9 + (t2.tv_nsec - t1.tv_nsec);
 			db->get(op[1], &val, &val_size);
+			if (val != nullptr) free(val);
 			if (!val) out << "delete is ok\n";
 		} else {
 			std::cout << "bad op\n";

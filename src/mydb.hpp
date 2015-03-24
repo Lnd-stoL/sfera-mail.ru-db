@@ -58,6 +58,8 @@ private:
     db_page * _findNeighbours(const record_internal_id& parentRecord, int& leftPrevPageId, int& rightNextPageId);
     bool _tryTakeFromNearest(db_page *page, db_page *parentPage, int parentRecPos,
                              db_page *leftPrevPage, db_page *rightNextPage);
+    void _mergePages(db_page *page, int parentRecordPos, db_page *parentPage, db_page *rightNextPage,
+                     db_page *leftPrevPage);
 
     db_page *_loadPage(int pageId) const;
     void _unloadPage(db_page *page) const;
