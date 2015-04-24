@@ -102,7 +102,7 @@ int db_flush(mydb_database *db)
 	if (db == nullptr)  return -1;
 
 	try {
-
+		return 0;
 	}
 	catch_exceptions("db_flush", -1);
 }

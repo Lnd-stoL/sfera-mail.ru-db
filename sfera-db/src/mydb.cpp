@@ -508,6 +508,8 @@ bool mydb_database::_removeFromNode(db_page *nodePage, int parentPageId, int par
     if (_testRebalanceAfterDelete(nextPageId, nextParPageId, recPos+1)) {
         return  _testRebalanceAfterDelete(nextParPageId, parentPageId, parentRecPos);
     }
+
+    return false;
 }
 
 

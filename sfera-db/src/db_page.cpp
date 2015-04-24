@@ -3,7 +3,7 @@
 
 #include <cassert>
 #include <algorithm>
-#include <glob.h>
+#include <stdlib.h>
 
 //----------------------------------------------------------------------------------------------------------------------
 // page layout brief description
@@ -344,7 +344,7 @@ void db_page::replace(int position, binary_data newValue)
 
     remove(position);
     insert(position, db_data_entry(key, newValue), linked);
-    key.free();
+    //key.free();
 }
 
 

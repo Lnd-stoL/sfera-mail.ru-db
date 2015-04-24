@@ -25,7 +25,7 @@ public:
     binary_data();
 
     ~binary_data();
-    bool free();
+    void free();
 
     size_t length()  const;
     void * dataPtr() const;
@@ -51,7 +51,7 @@ public:
     const binary_data&  value() const;
 
     size_t length() const;
-    bool free();
+    void free();
 
     db_data_entry(const binary_data &key, const binary_data &value) : _key (key), _value (value)  { }
     db_data_entry()  { }

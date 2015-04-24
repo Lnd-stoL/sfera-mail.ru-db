@@ -1,6 +1,9 @@
 
 #include "db_containers.hpp"
 
+#include <memory.h>
+#include <stdlib.h>
+
 //----------------------------------------------------------------------------------------------------------------------
 
 binary_data::binary_data() : _length (0), _dataPtr (nullptr)
@@ -9,7 +12,7 @@ binary_data::binary_data() : _length (0), _dataPtr (nullptr)
 
 binary_data::binary_data(size_t length) : _length (length)
 {
-    _dataPtr = malloc(length);
+    _dataPtr = ::malloc(length);
 }
 
 
@@ -21,7 +24,7 @@ binary_data::binary_data(void *dataPtr, size_t length) : _length (length)
 
 binary_data::binary_data(string str) : _length (str.size())
 {
-    _dataPtr = malloc(_length);
+    _dataPtr = ::malloc(_length);
     std::copy(str.begin(), str.end(), (char *)_dataPtr);
 }
 
@@ -83,14 +86,14 @@ size_t db_data_entry::length() const
 }
 
 
-bool binary_data::free()
+void binary_data::free()
 {
     ::free(_dataPtr);
     _dataPtr = nullptr;
 }
 
 
-bool db_data_entry::free()
+void db_data_entry::free()
 {
     _key.free();
     _value.free();
