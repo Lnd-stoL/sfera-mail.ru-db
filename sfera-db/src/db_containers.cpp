@@ -1,100 +1,26 @@
 
 #include "db_containers.hpp"
 
-#include <memory.h>
 #include <stdlib.h>
+#include <string.h>
 
 //----------------------------------------------------------------------------------------------------------------------
 
-binary_data::binary_data() : _length (0), _dataPtr (nullptr)
+sfera_db::data_blob::data_blob(uint8_t *dataPtr, size_t length) : _length (length), _dataPtr(dataPtr)
 { }
 
 
-binary_data::binary_data(size_t length) : _length (length)
-{
-    _dataPtr = ::malloc(length);
-}
-
-
-binary_data::binary_data(void *dataPtr, size_t length) : _length (length)
-{
-    _dataPtr = dataPtr;
-}
-
-
-binary_data::binary_data(string str) : _length (str.size())
-{
-    _dataPtr = ::malloc(_length);
-    std::copy(str.begin(), str.end(), (char *)_dataPtr);
-}
-
-
-binary_data::~binary_data()
-{
-}
-
-
-size_t binary_data::length() const
-{
-    return _length;
-}
-
-
-void *binary_data::dataPtr() const
-{
-    return _dataPtr;
-}
-
-
-uint8_t *binary_data::byteDataPtr() const
-{
-    return (uint8_t *)_dataPtr;
-}
-
-
-uint8_t *binary_data::byteDataEnd() const
-{
-    return byteDataPtr() + _length;
-}
-
-
-std::string binary_data::toString() const
+std::string sfera_db::data_blob::toString() const
 {
     std::string str(_length, ' ');
-    std::copy(byteDataPtr(), byteDataEnd(), str.begin());
+    std::copy(this->dataPtr(), this->dataEndPtr(), str.begin());
 
     return str;
 }
 
-//----------------------------------------------------------------------------------------------------------------------
 
-const binary_data &db_data_entry::key() const
+sfera_db::data_blob sfera_db::data_blob::fromCopyOf(const std::string &str)
 {
-    return _key;
-}
-
-
-const binary_data &db_data_entry::value() const
-{
-    return _value;
-}
-
-
-size_t db_data_entry::length() const
-{
-    return _key.length() + _value.length();
-}
-
-
-void binary_data::free()
-{
-    ::free(_dataPtr);
-    _dataPtr = nullptr;
-}
-
-
-void db_data_entry::free()
-{
-    _key.free();
-    _value.free();
+    char *strCopy = strdup(str.c_str());
+    return data_blob((uint8_t *)strCopy, str.length());
 }

@@ -4,7 +4,6 @@
 
 //----------------------------------------------------------------------------------------------------------------------
 
-#include <stddef.h>
 #include <cstdint>
 #include <string>
 
@@ -12,51 +11,44 @@ using std::string;
 
 //----------------------------------------------------------------------------------------------------------------------
 
-class binary_data
+namespace sfera_db
 {
-private:
-    size_t  _length;
-    void   *_dataPtr;
 
-public:
-    binary_data (size_t length);
-    binary_data (void* dataPtr, size_t length);
-    binary_data (string str);
-    binary_data();
+    class data_blob
+    {
+    private:
+        size_t   _length  = 0;
+        uint8_t *_dataPtr = nullptr;
 
-    ~binary_data();
-    void free();
+    public:
+        data_blob() { };
+        data_blob(uint8_t *dataPtr, size_t length);
 
-    size_t length()  const;
-    void * dataPtr() const;
+        inline size_t   length()     const  { return _length;  };
+        inline uint8_t *dataPtr()    const  { return _dataPtr; };
+        inline uint8_t *dataEndPtr() const  { return _dataPtr + _length; }
 
-    uint8_t *byteDataPtr() const;
-    uint8_t *byteDataEnd() const;
+        inline bool valid() const  { return _dataPtr != nullptr; }
 
-    std::string toString() const;
-
-    inline bool valid() const  { return _dataPtr != nullptr; }
-};
+        std::string toString() const;
+        static data_blob fromCopyOf(const std::string &str);
+    };
 
 //----------------------------------------------------------------------------------------------------------------------
 
-class db_data_entry
-{
-private:
-    binary_data  _key;
-    binary_data  _value;
+    struct key_value
+    {
+        data_blob key;
+        data_blob value;
 
-public:
-    const binary_data&  key()   const;
-    const binary_data&  value() const;
+        key_value() { }
+        key_value(data_blob k, data_blob v) : key(k), value(v) { }
 
-    size_t length() const;
-    void free();
+        inline size_t summLength() const  { return key.length() + value.length(); }
+    };
 
-    db_data_entry(const binary_data &key, const binary_data &value) : _key (key), _value (value)  { }
-    db_data_entry()  { }
-};
+}
 
 //----------------------------------------------------------------------------------------------------------------------
 
-#endif //_SFERA_MYDBMS_DB_CONTAINERS_H_
+#endif    //_SFERA_MYDBMS_DB_CONTAINERS_H_

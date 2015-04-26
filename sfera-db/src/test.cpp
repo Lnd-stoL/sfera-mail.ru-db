@@ -6,18 +6,26 @@
 using std::cout;
 using std::endl;
 
-#include "mydb.hpp"
+#include "database.hpp"
 
+using namespace sfera_db;
 
 int main (int argc, char** argv)
 {
-    //mydb_database db("storage.db");
-    mydb_database db("storage.db", 50000000, mydb_internal_config(2024));
+    database_config dbConfig;
+    dbConfig.pageSizeBytes = 1024;
+    dbConfig.maxDBSize = 32000000;
 
-    binary_data tk1("1testketestkeytestkeytestkeyytestkey");
-    binary_data tk2("2testkeytestkeytestkeytestkeytestkjklkjklkjkljeytestkeytestkeytestkey2");
+    database *db = database::createEmpty("test_db", dbConfig);
 
-    db.insert(tk1, tk2);
+    data_blob tk1 = data_blob::fromCopyOf("1testketestkeytestkeytestkeyytestkey");
+    data_blob tk2 = data_blob::fromCopyOf("2testkeytestkeytestkeytestkeytestkjklkjklkjkljeytestkeytestkeytestkey2");
+    data_blob tv = data_blob::fromCopyOf("testValue");
 
+    db->insert(tk1, tv);
+    db->insert(tk2, tv);
+
+    std::cout << db->dump() << std::endl;
+    delete db;
     return 0;
 }

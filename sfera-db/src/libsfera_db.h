@@ -1,7 +1,6 @@
 
 #include <stddef.h>
 
-
 struct DBC {
 	/* Maximum on-disk file size
 	 * 512MB by default
@@ -16,6 +15,3 @@ struct DBC {
 	 * */
 	size_t cache_size;
 };
-
-
-int db_sync (const struct DB *db);

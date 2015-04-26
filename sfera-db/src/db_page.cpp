@@ -1,10 +1,4 @@
 
-#include "db_page.hpp"
-
-#include <cassert>
-#include <algorithm>
-#include <stdlib.h>
-
 //----------------------------------------------------------------------------------------------------------------------
 // page layout brief description
 //----------------------------------------------------------------------------------------------------------------------
@@ -25,24 +19,37 @@
 //
 //----------------------------------------------------------------------------------------------------------------------
 
+#include "db_page.hpp"
+
+#include <cassert>
+#include <algorithm>
+#include <stdlib.h>
+
+//----------------------------------------------------------------------------------------------------------------------
+
+using namespace sfera_db;
+
+//----------------------------------------------------------------------------------------------------------------------
+
 db_page::key_iterator::key_iterator(const db_page *page, int position) : _page (page), _position (position)
 { }
 
 
-bool db_page::key_iterator::operator != (const db_page::key_iterator &rhs) const
+bool db_page::key_iterator::operator!=(const db_page::key_iterator &rhs) const
 {
     assert(_page == rhs._page);
     return _position != rhs._position;
 }
 
 
-bool db_page::key_iterator::operator == (const db_page::key_iterator &rhs) const
+bool db_page::key_iterator::operator==(const db_page::key_iterator &rhs) const
 {
     return !(this->operator!=(rhs));
 }
 
 
-db_page::key_iterator& db_page::key_iterator::operator = (const db_page::key_iterator &rhs)
+db_page::key_iterator&
+db_page::key_iterator::operator=(const db_page::key_iterator &rhs)
 {
     _page = rhs._page;
     _position = rhs._position;
@@ -50,7 +57,8 @@ db_page::key_iterator& db_page::key_iterator::operator = (const db_page::key_ite
 }
 
 
-db_page::key_iterator db_page::key_iterator::operator ++ (int i)
+db_page::key_iterator
+db_page::key_iterator::operator++(int i)
 {
     db_page::key_iterator tmp = *this;
     this->operator+=(1);
@@ -58,27 +66,30 @@ db_page::key_iterator db_page::key_iterator::operator ++ (int i)
 }
 
 
-db_page::key_iterator db_page::key_iterator::operator ++ ()
+db_page::key_iterator
+db_page::key_iterator::operator++()
 {
     this->operator+=(1);
     return *this;
 }
 
 
-binary_data db_page::key_iterator::operator * ()
+data_blob
+db_page::key_iterator::operator*()
 {
     return _page->key(_position);
 }
 
 
-int db_page::key_iterator::operator - (db_page::key_iterator const &rhs)
+int db_page::key_iterator::operator-(db_page::key_iterator const &rhs)
 {
     assert(_page == rhs._page);
     return _position - rhs._position;
 }
 
 
-db_page::key_iterator db_page::key_iterator::operator += (int offset)
+db_page::key_iterator
+db_page::key_iterator::operator += (int offset)
 {
     int newPosition = (int)_position + offset;
     if (newPosition >= _page->recordCount() || newPosition < 0) {
@@ -90,7 +101,8 @@ db_page::key_iterator db_page::key_iterator::operator += (int offset)
 }
 
 
-binary_data db_page::key_iterator::value() const
+data_blob
+db_page::key_iterator::value() const
 {
     return _page->value(_position);
 }
@@ -102,17 +114,35 @@ int db_page::key_iterator::link() const
 }
 
 //----------------------------------------------------------------------------------------------------------------------
+//----------------------------------------------------------------------------------------------------------------------
+//----------------------------------------------------------------------------------------------------------------------
 
-db_page::db_page(int index, binary_data pageBytes) :
-        _index (index),
-        _pageSize (pageBytes.length()),
-        _pageBytes (pageBytes.byteDataPtr())
+db_page* db_page::load(int index, data_blob pageBytes)
+{
+    auto dbPage = new db_page(index, pageBytes);
+    dbPage->_load();
+    return dbPage;
+}
+
+
+db_page* db_page::createEmpty(int index, data_blob pageBytes, bool isLeaf)
+{
+    auto dbPage = new db_page(index, pageBytes);
+    dbPage->_initializeEmpty(!isLeaf);
+    return dbPage;
+}
+
+
+db_page::db_page(int index, data_blob pageBytes) :
+    _index(index),
+    _pageSize(pageBytes.length()),
+    _pageBytes(pageBytes.dataPtr())
 {
     _indexTable = _pageBytes + 2 * sizeof(uint16_t) + 1;
 }
 
 
-void db_page::initializeEmpty(bool hasLinks)
+void db_page::_initializeEmpty(bool hasLinks)
 {
     _hasLinks = hasLinks;
     _wasChanged = true;
@@ -153,63 +183,62 @@ int db_page::link(int position) const
 }
 
 
-db_data_entry db_page::record(int position) const
-{
-    return db_data_entry(key(position), value(position));
-}
-
-
-binary_data db_page::key(int position) const
+data_blob
+db_page::key(int position) const
 {
     assert(_pageBytes != nullptr);
     assert(position >= 0 && position < _recordCount);
 
     auto recordIndex = _recordIndex(position);
     uint8_t *ptr = _pageBytes + recordIndex.keyValueOffset;
-    return binary_data(ptr, recordIndex.keyLength);
+    return data_blob(ptr, recordIndex.keyLength);
 }
 
 
-binary_data db_page::value(int position) const
+data_blob
+db_page::value(int position) const
 {
-    assert(_pageBytes != nullptr);
-    assert(position >= 0 && position < _recordCount);
+    assert( _pageBytes != nullptr );
+    assert( position >= 0 && position < _recordCount );
 
     auto recordIndex = _recordIndex(position);
     uint8_t *ptr = _pageBytes + recordIndex.valueOffset();
-    return binary_data(ptr, recordIndex.valueLength);
+    return data_blob(ptr, recordIndex.valueLength);
 }
 
 
-void db_page::insert(int position, db_data_entry data, int linked)
+void db_page::insert(int position, key_value data, int linked)
 {
-    assert(_pageBytes != nullptr);
-    assert(position >= 0 && position < _recordCount+1);
-    assert(possibleToInsert(data));
-    assert(hasLinks() || linked == -1);
+    assert( _pageBytes != nullptr );
+    assert( position >= 0 && position < _recordCount+1 );
+    assert( possibleToInsert(data) );
+    assert( hasLinks() || linked == -1 );
 
-    _dataBlockEndOffset -= data.length();
-    std::copy(data.key().byteDataPtr(), data.key().byteDataEnd(), _pageBytes + _dataBlockEndOffset);
-    std::copy(data.value().byteDataPtr(), data.value().byteDataEnd(), _pageBytes + _dataBlockEndOffset + data.key().length());
+    _dataBlockEndOffset -= data.summLength();
+    std::copy(data.key.dataPtr(), data.key.dataEndPtr(), _pageBytes + _dataBlockEndOffset);
+    std::copy(data.value.dataPtr(), data.value.dataEndPtr(), _pageBytes + _dataBlockEndOffset + data.key.length());
 
-    _insertRecordIndex(position, record_index(_dataBlockEndOffset, data.key().length(), data.value().length()), linked);
+    _insertRecordIndex(position, record_index(_dataBlockEndOffset, data.key.length(), data.value.length()), linked);
     _wasChanged = true;
 }
 
 
-db_page::key_iterator db_page::begin() const
+db_page::key_iterator
+db_page::begin() const
 {
     return db_page::key_iterator(this, 0);
 }
 
 
-db_page::key_iterator db_page::end() const
+db_page::key_iterator
+db_page::end() const
 {
     return db_page::key_iterator(this, (int)_recordCount);
 }
 
 
-db_page::record_index db_page::_recordIndex(int position) const
+db_page::record_index
+db_page::_recordIndex(int position) const
 {
     auto rawPtr = _recordIndexRawPtr(position);
     return record_index(rawPtr[0], rawPtr[1], rawPtr[2]);
@@ -218,7 +247,7 @@ db_page::record_index db_page::_recordIndex(int position) const
 
 void db_page::_insertRecordIndex(int position, db_page::record_index const &recordIndex, int linked)
 {
-    assert(_auxInfoSize() + _recordIndexSize() <= _dataBlockEndOffset);
+    assert( _auxInfoSize() + _recordIndexSize() <= _dataBlockEndOffset );
 
     std::copy_backward((uint8_t *)_recordIndexRawPtr(position),
                        _pageBytes + _auxInfoSize(),
@@ -236,14 +265,14 @@ void db_page::_insertRecordIndex(int position, db_page::record_index const &reco
 
 void db_page::prepareForWriting()
 {
-    assert(_pageBytes != nullptr);
+    assert( _pageBytes != nullptr );
 
     _pageBytesUint16(0,                (uint16_t)_recordCount);
     _pageBytesUint16(sizeof(uint16_t), (uint16_t)_dataBlockEndOffset);
 }
 
 
-void db_page::load()
+void db_page::_load()
 {
     _recordCount = _pageBytesUint16(0);
     _dataBlockEndOffset = _pageBytesUint16(sizeof(uint16_t));
@@ -260,34 +289,34 @@ db_page::~db_page()
 }
 
 
-void db_page::insert(db_page::key_iterator position, db_data_entry data, int linked)
+void db_page::insert(db_page::key_iterator position, key_value data, int linked)
 {
-    assert(position.associatedPage() == this);
+    assert( position.associatedPage() == this );
     insert(position.position(), data, linked);
 }
 
 
 void db_page::relink(int position, int linked)
 {
-    assert(_pageBytes != nullptr);
-    assert(_hasLinks);
-    assert(position >= 0 && position <= _recordCount);
+    assert( _pageBytes != nullptr );
+    assert( _hasLinks );
+    assert( position >= 0 && position <= _recordCount );
 
     *(int32_t *)(_recordIndexRawPtr(position) + 3) = linked;
     _wasChanged = true;
 }
 
 
-bool db_page::possibleToInsert(db_data_entry element)
+bool db_page::possibleToInsert(key_value element)
 {
-    return _freeBytes() >= element.length() + _recordIndexSize();
+    return _freeBytes() >= element.summLength() + _recordIndexSize();
 }
 
 
 void db_page::remove(int position)
 {
-    assert(_pageBytes != nullptr);
-    assert(position >= 0 && position < _recordCount);
+    assert( _pageBytes != nullptr );
+    assert( position >= 0 && position < _recordCount );
     if (position < 0 || position >= _recordCount)  return;
 
     auto indexBlock = _recordIndex(position);
@@ -319,8 +348,8 @@ bool db_page::isMinimallyFilled() const
 
 bool db_page::willRemainMinimallyFilledWithout(int position) const
 {
-    assert(_pageBytes != nullptr);
-    assert(position >= 0 && position < _recordCount);
+    assert( _pageBytes != nullptr );
+    assert( position >= 0 && position < _recordCount );
 
     size_t realPageSize = _pageSize;
     _pageSize += _recordIndex(position).length();
@@ -331,30 +360,30 @@ bool db_page::willRemainMinimallyFilledWithout(int position) const
 }
 
 
-void db_page::replace(int position, binary_data newValue)
+void db_page::replace(int position, data_blob newValue)
 {
-    assert(_pageBytes != nullptr);
-    assert(position >= 0 && position < _recordCount);
+    assert( _pageBytes != nullptr );
+    assert( position >= 0 && position < _recordCount );
 
     auto index = _recordIndex(position);
-    binary_data key (malloc(index.keyLength), index.keyLength);
-    std::copy(_pageBytes + index.keyValueOffset, _pageBytes + index.keyValueOffset + index.keyLength, key.byteDataPtr());
+    data_blob key((uint8_t *)::malloc(index.keyLength), index.keyLength);
+    std::copy(_pageBytes + index.keyValueOffset, _pageBytes + index.keyValueOffset + index.keyLength, key.dataPtr());
     int linked = -1;
     if (_hasLinks) linked = link(position);
 
     remove(position);
-    insert(position, db_data_entry(key, newValue), linked);
+    insert(position, key_value(key, newValue), linked);
     //key.free();
 }
 
 
-db_page *db_page::splitEquispace(db_page *rightPage, int& medianPosition)
+db_page* db_page::splitEquispace(db_page *rightPage, int& medianPosition)
 {
-    assert(_pageBytes != nullptr);
-    assert(_recordCount >= 3);    // at least 3 records for correct split
+    assert( _pageBytes != nullptr );
+    assert( _recordCount >= 3 );    // at least 3 records for correct split
 
-    db_page * leftPage = new db_page(_index, binary_data(malloc(_pageSize), _pageSize));
-    leftPage->initializeEmpty(_hasLinks);
+    db_page * leftPage = new db_page(_index, data_blob((uint8_t *)::malloc(_pageSize), _pageSize));
+    leftPage->_initializeEmpty(_hasLinks);
 
     size_t accumulatedSize = 0;
     size_t neededSize = (_pageSize - _freeBytes()) / 2;
@@ -380,22 +409,22 @@ db_page *db_page::splitEquispace(db_page *rightPage, int& medianPosition)
 }
 
 
-bool db_page::canReplace(int position, binary_data newData) const
+bool db_page::canReplace(int position, data_blob newData) const
 {
     return newData.length() - _recordIndex(position).valueLength <= _freeBytes();
 }
 
 
-void db_page::replace(int position, const db_data_entry &data, int linked)
+void db_page::replace(int position, const key_value &data, int linked)
 {
-    assert(position >= 0 && position < _recordCount);
+    assert( position >= 0 && position < _recordCount );
 
     remove(position);
     insert(position, data, linked);
 }
 
 
-void db_page::append(db_data_entry data, int linked)
+void db_page::append(key_value data, int linked)
 {
     insert((int)_recordCount, data, linked);
 }
@@ -409,8 +438,14 @@ size_t db_page::usedBytes() const
 
 size_t db_page::usedBytesFor(int position) const
 {
-    assert(position >= 0 && (position < _recordCount  || position <= _recordCount && _hasLinks));
+    assert( position >= 0 && (position < _recordCount  || position <= _recordCount && _hasLinks) );
 
     if (position == _recordCount)  return _recordIndexSize();
     return _recordIndexSize() + _recordIndex(position).length();
+}
+
+
+key_value db_page::record(int position) const
+{
+    return key_value(this->key(position), this->value(position));
 }

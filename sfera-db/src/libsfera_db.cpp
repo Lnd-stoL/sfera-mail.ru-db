@@ -1,6 +1,6 @@
 
-#include "libmydb.h"
-#include "mydb.hpp"
+#include "libsfera_db.h"
+#include "database.hpp"
 
 #include <iostream>
 
@@ -15,11 +15,15 @@
 
 //----------------------------------------------------------------------------------------------------------------------
 
+using namespace sfera_db;
+
+//----------------------------------------------------------------------------------------------------------------------
+
 extern "C"
-mydb_database * dbopen(const char *file)
+database* dbopen(const char *file)
 {
 	try {
-		mydb_database *db = new mydb_database(file);
+		database *db = database::openExisting(file);
 		return db;
 	}
 	catch_exceptions("dbopen", nullptr);
@@ -27,10 +31,14 @@ mydb_database * dbopen(const char *file)
 
 
 extern "C"
-mydb_database * dbcreate(const char *file, DBC *conf)
+database* dbcreate(const char *file, DBC *conf)
 {
 	try {
-		mydb_database *db = new mydb_database(file, conf->db_size, mydb_internal_config(conf->page_size));
+		database_config dbConfig;
+		dbConfig.pageSizeBytes = conf->page_size;
+		dbConfig.maxDBSize = conf->db_size;
+
+		database *db = database::createEmpty(file, dbConfig);
 		return db;
 	}
 	catch_exceptions("dbcreate", nullptr);
@@ -38,7 +46,7 @@ mydb_database * dbcreate(const char *file, DBC *conf)
 
 
 extern "C"
-int db_close(mydb_database *db)
+int db_close(database *db)
 {
 	try {
 		//std::cout << db->dump() << std::endl;
@@ -50,12 +58,12 @@ int db_close(mydb_database *db)
 
 
 extern "C"
-int db_delete(mydb_database *db, void *key, size_t length)
+int db_delete(database *db, void *key, size_t length)
 {
 	if (db == nullptr)  return -1;
 
 	try {
-		db->remove(binary_data(key, length));
+		db->remove(data_blob((uint8_t *)key, length));
 		return 0;
 	}
 	catch_exceptions("db_del", -1);
@@ -63,12 +71,12 @@ int db_delete(mydb_database *db, void *key, size_t length)
 
 
 extern "C"
-int db_select(mydb_database *db, void *key, size_t keyLength, void **pVal, size_t *pValLength)
+int db_select(database *db, void *key, size_t keyLength, void **pVal, size_t *pValLength)
 {
 	if (db == nullptr)  return -1;
 
 	try {
-		binary_data result = db->get(binary_data(key, keyLength));
+		data_blob result = db->get(data_blob((uint8_t *)key, keyLength));
 		if (!result.valid()) {
 			*pVal = nullptr;
 			*pValLength = 0;
@@ -84,12 +92,12 @@ int db_select(mydb_database *db, void *key, size_t keyLength, void **pVal, size_
 
 
 extern "C"
-int db_insert(mydb_database *db, void *key, size_t keyLength, void *value, size_t valueLength)
+int db_insert(database *db, void *key, size_t keyLength, void *value, size_t valueLength)
 {
 	if (db == nullptr)  return -1;
 
 	try {
-		db->insert(binary_data(key, keyLength), binary_data(value, valueLength));
+		db->insert(data_blob((uint8_t *)key, keyLength), data_blob((uint8_t *)value, valueLength));
 		return 0;
 	}
 	catch_exceptions("db_put", -1);
@@ -97,7 +105,7 @@ int db_insert(mydb_database *db, void *key, size_t keyLength, void *value, size_
 
 
 extern "C"
-int db_flush(mydb_database *db)
+int db_flush(database *db)
 {
 	if (db == nullptr)  return -1;
 
