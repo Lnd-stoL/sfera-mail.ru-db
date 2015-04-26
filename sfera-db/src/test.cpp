@@ -10,6 +10,7 @@ using std::endl;
 
 using namespace sfera_db;
 
+
 int main (int argc, char** argv)
 {
     database_config dbConfig;

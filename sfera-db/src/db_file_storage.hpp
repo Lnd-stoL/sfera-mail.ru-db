@@ -44,8 +44,8 @@ namespace sfera_db
 
     private:
         void _initializeEmpty(size_t maxStorageSize);
-        void  _initPagesMetaTableByteSize();
         void _load();
+        void _initPagesMetaTableByteSize();
 
         void  _ensureFileSize(size_t neededSize);
         off_t _rawFileWrite(off_t offset, const void *data, size_t length) const;
@@ -53,7 +53,7 @@ namespace sfera_db
 
         int   _getNextFreePageIndex();
         void  _updatePageMetaInfo(int pageIndex, bool allocated);
-        void  _updateRootPageId();
+        void  _diskWriteRootPageId();
         off_t _pageOffset(int pageID) const;
 
 
@@ -67,13 +67,13 @@ namespace sfera_db
 
         db_page* fetchPage(int pageId);
         db_page* allocatePage(bool isLeaf);
-        void unloadPage(db_page *page);
+        void releasePage(db_page *page);
 
         void writePage(db_page *page);
-        void writeAndUnload(db_page *page);
+        void writeAndRelease(db_page *page);
 
         void deallocatePage(db_page *page);
-        void deallocateAndUnload(db_page *page);
+        void deallocateAndRelease(db_page *page);
 
         db_page* allocateNewRootPage();
         void changeRootPage(db_page *page);

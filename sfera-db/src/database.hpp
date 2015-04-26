@@ -51,7 +51,7 @@ namespace sfera_db
 
     private:
         const std::string MainStorageFileName = "data.sdbs";
-        const std::string BinlogFileName = "binlog.sdbl";
+        const std::string LogFileName         = "binlog.sdbl";
 
     private:
         db_file_storage *_fileStorage = nullptr;
@@ -63,11 +63,12 @@ namespace sfera_db
         void _tryInsertInPage(int pageId, int parentPageId, const key_value &element);
         db_page* _splitPage(db_page *page, int parentPageId, const key_value &element);
         bool _makePageMinimallyFilled(db_page *page, int parentPageId, int parentRecordPos);
-        void _newRoot(key_value element, int leftLink, int rightLink);
-        void _removeEmptyRoot();
+        void _makeNewRoot(key_value element, int leftLink, int rightLink);
+        void _checkAndRemoveEmptyRoot();
         bool _removeFromLeaf(db_page *page, int recPos, int parentPageId, int parentRecordPos);
         bool _removeFromNode(db_page *nodePage, int parentPageId, int parentRecPos, int recPos);
-        bool _rRemoveFromNodeR(int pageId, int parentPageId, int parentRecPos, key_value &element, bool canRebalance);
+        bool _rRemoveFromNodeR(int pageId, int parentPageId, int parentRecPos, key_value_copy &element,
+                               bool canRebalance);
         bool _testRebalanceAfterDelete(int pageId, int parentPageId, int parentRecPos);
         db_page * _findNeighbours(const record_internal_id& parentRecord, int& leftPrevPageId, int& rightNextPageId);
         bool _tryTakeFromNearest(db_page *page, db_page *parentPage, int parentRecPos,
@@ -75,12 +76,10 @@ namespace sfera_db
         void _mergePages(db_page *page, int parentRecordPos, db_page *parentPage, db_page *rightNextPage,
                          db_page *leftPrevPage);
 
-        db_page *_loadPage(int pageId) const;
-        void _unloadPage(db_page *page) const;
         data_blob _copyDataFromLoadedPage(data_blob src) const;
         key_value _copyDataFromLoadedPage(key_value src) const;
         void _dump(std::ostringstream &info, int pageId) const;
-        void _dumpSortedKeys(std::ostringstream &info, int pageId) const;
+        void _rDumpSortedKeys(std::ostringstream &info, int pageId) const;
 
         static bool _binaryKeyComparer(data_blob key1, data_blob key2);
         static bool _keysEqual(data_blob key1, data_blob key2);
