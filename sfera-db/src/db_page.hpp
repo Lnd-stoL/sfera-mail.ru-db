@@ -138,30 +138,30 @@ namespace sfera_db
         bool hasLinks() const;
         bool possibleToInsert(key_value element);
 
-        key_value record(int position) const;
-        int link(int position) const;
-        data_blob key(int position) const;
-        data_blob value(int position) const;
+        key_value recordAt(int position) const;
+        int childAt(int position) const;
+        data_blob keyAt(int position) const;
+        data_blob valueAt(int position) const;
 
-        key_iterator begin() const;
-        key_iterator end() const;
+        key_iterator keysBegin() const;
+        key_iterator keysEnd() const;
 
         void insert(int position, key_value data, int linked = -1);
         void append(key_value data, int linked = -1);
         void insert(key_iterator position, key_value data, int linked = -1);
-        void relink(int position, int linked);
+        void reconnect(int position, int childId);
         void remove(int position);
         void replace(int position, data_blob newValue);
         void replace(int position, const key_value & element, int linked = -1);
         bool canReplace(int position, data_blob newValue) const;
 
-        db_page * splitEquispace(db_page * rightPage, int& medianPosition);
+        db_page* splitEquispace(db_page * rightPage, int& medianPosition);
 
         inline  size_t    size()       const  { return _pageSize; }
-        inline  int       index()      const  { return _index; }
+        inline  int       id()         const  { return _index; }
         inline  bool      wasChanged() const  { return _wasChanged; }
         inline  uint8_t*  bytes()      const  { return _pageBytes; }
-        inline  int       lastLink()   const  { return link((int)_recordCount); }
+        inline  int       lastRightChild()   const  { return this->childAt((int) _recordCount); }
 
         inline void wasSaved()  { _wasChanged = false; }
     };

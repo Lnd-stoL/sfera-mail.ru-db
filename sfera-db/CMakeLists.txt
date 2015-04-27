@@ -15,4 +15,4 @@ set(SOURCE_FILES
     src/libsfera_db.cpp
     )
 
-add_executable(sfera-db ${SOURCE_FILES})
+add_executable(sfera-db ${SOURCE_FILES} src/pages_cache.cpp src/pages_cache.h)

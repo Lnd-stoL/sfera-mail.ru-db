@@ -4,8 +4,7 @@
 
 //----------------------------------------------------------------------------------------------------------------------
 
-#include "db_page.hpp"
-#include "syscall_checker.h"
+#include "pages_cache.h"
 
 //----------------------------------------------------------------------------------------------------------------------
 
@@ -40,6 +39,7 @@ namespace sfera_db
         uint8_t *_pagesMetaTable = nullptr;
 
         db_page* _rootPage = nullptr;
+        pages_cache _pagesCache;
 
 
     private:
@@ -58,7 +58,7 @@ namespace sfera_db
 
 
     private:
-        db_file_storage() { };
+        db_file_storage() : _pagesCache(0) { };
 
     public:
         ~db_file_storage();

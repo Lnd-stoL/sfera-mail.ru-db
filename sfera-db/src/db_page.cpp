@@ -5,14 +5,14 @@
 //
 //  offset |  size  |  field meaning
 //  --------------------------------------------------------------------------------------------------------------------
-//  0      | uint16 | record count the page contains (record = key+value entry and a link to the child btree node)
+//  0      | uint16 | recordAt count the page contains (record = key+valueAt entry and a childAt to the child btree node)
 //  2      | uint16 | data_block_end (the data contains of keys and values BLOBs and is placed to the end of the page)
 //  4      | byte   | meta information (actually a byte indicating if the page is btree leaf [0] or not [1])
 //  5      | ------ | data entry index blocks:
 //                      block consists of three integers ( uint16 ) + one 32-bit integer
 //                          at 0 - key_value blob offset within the page
 //                          at 2 - key length in bytes
-//                          at 4 - value length in bytes
+//                          at 4 - valueAt length in bytes
 //                          at 6 - [if not a leaf] ID of a page which is a btree child node coming BEFORE the key
 //   ===== FREE SPACE =====
 //   ===== ACTUAL VALUES AND KEYS BINARY DATA ===== - from data_block_end to the end of the page
@@ -77,7 +77,7 @@ db_page::key_iterator::operator++()
 data_blob
 db_page::key_iterator::operator*()
 {
-    return _page->key(_position);
+    return _page->keyAt(_position);
 }
 
 
@@ -93,7 +93,7 @@ db_page::key_iterator::operator += (int offset)
 {
     int newPosition = (int)_position + offset;
     if (newPosition >= _page->recordCount() || newPosition < 0) {
-        *this = _page->end();
+        *this = _page->keysEnd();
     }
 
     *this = db_page::key_iterator(_page, newPosition);
@@ -104,13 +104,13 @@ db_page::key_iterator::operator += (int offset)
 data_blob
 db_page::key_iterator::value() const
 {
-    return _page->value(_position);
+    return _page->valueAt(_position);
 }
 
 
 int db_page::key_iterator::link() const
 {
-    return _page->link(_position);
+    return _page->childAt(_position);
 }
 
 //----------------------------------------------------------------------------------------------------------------------
@@ -146,7 +146,7 @@ void db_page::_initializeEmpty(bool hasLinks)
 {
     _hasLinks = hasLinks;
     _wasChanged = true;
-    _pageBytesUint16(0, 0);                      // record count
+    _pageBytesUint16(0, 0);                      // recordAt count
 
     _dataBlockEndOffset = _pageSize;
     _pageBytesUint16(0, (uint16_t) _dataBlockEndOffset);    // data block end offset
@@ -172,22 +172,21 @@ bool db_page::hasLinks() const
 }
 
 
-int db_page::link(int position) const
+int db_page::childAt(int position) const
 {
-    assert(_pageBytes != nullptr);
-    assert(_hasLinks);
-    assert(position >= 0 && position <= _recordCount);
+    assert( _pageBytes != nullptr );
+    assert( _hasLinks );
+    assert( position >= 0 && position <= _recordCount );
 
     if (!hasLinks())  return 0;
     return *(int32_t *)(_recordIndexRawPtr(position) + 3);
 }
 
 
-data_blob
-db_page::key(int position) const
+data_blob db_page::keyAt(int position) const
 {
-    assert(_pageBytes != nullptr);
-    assert(position >= 0 && position < _recordCount);
+    assert( _pageBytes != nullptr );
+    assert( position >= 0 && position < _recordCount );
 
     auto recordIndex = _recordIndex(position);
     uint8_t *ptr = _pageBytes + recordIndex.keyValueOffset;
@@ -195,8 +194,7 @@ db_page::key(int position) const
 }
 
 
-data_blob
-db_page::value(int position) const
+data_blob db_page::valueAt(int position) const
 {
     assert( _pageBytes != nullptr );
     assert( position >= 0 && position < _recordCount );
@@ -224,14 +222,14 @@ void db_page::insert(int position, key_value data, int linked)
 
 
 db_page::key_iterator
-db_page::begin() const
+db_page::keysBegin() const
 {
     return db_page::key_iterator(this, 0);
 }
 
 
 db_page::key_iterator
-db_page::end() const
+db_page::keysEnd() const
 {
     return db_page::key_iterator(this, (int)_recordCount);
 }
@@ -257,7 +255,7 @@ void db_page::_insertRecordIndex(int position, db_page::record_index const &reco
     rawPtr[0] = recordIndex.keyValueOffset;
     rawPtr[1] = recordIndex.keyLength;
     rawPtr[2] = recordIndex.valueLength;
-    if (_hasLinks) relink(position, linked);
+    if (_hasLinks) reconnect(position, linked);
 
     _recordCount++;
 }
@@ -296,13 +294,13 @@ void db_page::insert(db_page::key_iterator position, key_value data, int linked)
 }
 
 
-void db_page::relink(int position, int linked)
+void db_page::reconnect(int position, int childId)
 {
     assert( _pageBytes != nullptr );
     assert( _hasLinks );
     assert( position >= 0 && position <= _recordCount );
 
-    *(int32_t *)(_recordIndexRawPtr(position) + 3) = linked;
+    *(int32_t *)(_recordIndexRawPtr(position) + 3) = childId;
     _wasChanged = true;
 }
 
@@ -369,7 +367,7 @@ void db_page::replace(int position, data_blob newValue)
     data_blob key((uint8_t *)::malloc(index.keyLength), index.keyLength);
     std::copy(_pageBytes + index.keyValueOffset, _pageBytes + index.keyValueOffset + index.keyLength, key.dataPtr());
     int linked = -1;
-    if (_hasLinks) linked = link(position);
+    if (_hasLinks) linked = childAt(position);
 
     remove(position);
     insert(position, key_value(key, newValue), linked);
@@ -391,18 +389,18 @@ db_page* db_page::splitEquispace(db_page *rightPage, int& medianPosition)
 
     for (; copiedRecordCount < _recordCount-2 && (accumulatedSize < neededSize || copiedRecordCount < 1); ++copiedRecordCount) {
         accumulatedSize += _recordIndex(copiedRecordCount).length() + _recordIndexSize();
-        leftPage->insert(copiedRecordCount, record(copiedRecordCount));
-        if (_hasLinks)  leftPage->relink(copiedRecordCount, link(copiedRecordCount));
+        leftPage->insert(copiedRecordCount, recordAt(copiedRecordCount));
+        if (_hasLinks) leftPage->reconnect(copiedRecordCount, childAt(copiedRecordCount));
     }
-    if (_hasLinks) leftPage->relink(copiedRecordCount, link(copiedRecordCount));
+    if (_hasLinks) leftPage->reconnect(copiedRecordCount, childAt(copiedRecordCount));
 
     medianPosition = copiedRecordCount++;
 
     for (int i = 0; copiedRecordCount < _recordCount; ++copiedRecordCount, ++i) {
-        rightPage->insert(i, record(copiedRecordCount));
-        if (_hasLinks)  rightPage->relink(i, link(copiedRecordCount));
+        rightPage->insert(i, recordAt(copiedRecordCount));
+        if (_hasLinks) rightPage->reconnect(i, childAt(copiedRecordCount));
     }
-    if (_hasLinks) rightPage->relink((int)rightPage->recordCount(), lastLink());
+    if (_hasLinks) rightPage->reconnect((int) rightPage->recordCount(), lastRightChild());
 
     _wasChanged = false;
     return leftPage;
@@ -445,7 +443,7 @@ size_t db_page::usedBytesFor(int position) const
 }
 
 
-key_value db_page::record(int position) const
+key_value db_page::recordAt(int position) const
 {
-    return key_value(this->key(position), this->value(position));
+    return key_value(this->keyAt(position), this->valueAt(position));
 }

@@ -51,7 +51,7 @@ namespace sfera_db
 
     private:
         const std::string MainStorageFileName = "data.sdbs";
-        const std::string LogFileName         = "binlog.sdbl";
+        const std::string LogFileName         = "log.sdbl";
 
     private:
         db_file_storage *_fileStorage = nullptr;
