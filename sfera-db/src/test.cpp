@@ -1,6 +1,7 @@
 
 #include <iostream>
 #include <vector>
+#include <algorithm>
 
 #include "database.hpp"
 
@@ -13,11 +14,13 @@ void fillTestSet(std::vector<std::pair<data_blob, data_blob>> &testSet, size_t c
 
     for (size_t i = 0; i < count; ++i) {
 
-        auto skey = std::string("test key ololo ") + std::string(i%20, 't') + std::to_string(i);
-        auto svalue = std::string("value test") + std::to_string(i);
+        auto skey = std::string("test key ololo ") + std::string(i%20, '0') + std::to_string(i);
+        auto svalue = std::string("value QWERTY test") + std::to_string(i);
 
         testSet[i] = std::make_pair(data_blob::fromCopyOf(skey), data_blob::fromCopyOf(svalue));
     }
+
+    std::random_shuffle(testSet.begin(), testSet.end());
 }
 
 
@@ -30,12 +33,14 @@ int main (int argc, char** argv)
     database *db = database::createEmpty("test_db", dbConfig);
 
     std::vector<std::pair<data_blob, data_blob>> testSet;
-    fillTestSet(testSet, 10);
+    fillTestSet(testSet, 20000);
 
     // insertion
     for (size_t i = 0; i < testSet.size(); ++i) {
         std::cout << "INSERT " << testSet[i].first.toString() << " : " << testSet[i].second.toString() << std::endl;
         db->insert(testSet[i].first, testSet[i].second);
+
+        //std::cout << std::endl << db->dump() << std::endl;
     }
 
     // getting
@@ -50,17 +55,20 @@ int main (int argc, char** argv)
             break;
         }
     }
+
     std::cout << "GET TEST: " << getOK << std::endl;
+    std::cout << std::endl << db->dump() << std::endl;
 
     // removing
     for (size_t i = 0; i < testSet.size(); ++i) {
         std::cout << "REMOVE " << testSet[i].first.toString() << " ";
         db->remove(testSet[i].first);
         data_blob result = db->get(testSet[i].first);
+
         std::cout << (result.valid() ? "FAILED" : "OK") << std::endl;
     }
 
-    std::cout << db->dump() << std::endl;
+    std::cout << std::endl << db->dump() << std::endl;
     delete db;
     return 0;
 }

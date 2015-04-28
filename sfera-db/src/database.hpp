@@ -70,7 +70,7 @@ namespace sfera_db
         bool _rRemoveFromNodeR(int pageId, int parentPageId, int parentRecPos, key_value_copy &element,
                                bool canRebalance);
         bool _testRebalanceAfterDelete(int pageId, int parentPageId, int parentRecPos);
-        db_page * _findNeighbours(const record_internal_id& parentRecord, int& leftPrevPageId, int& rightNextPageId);
+        db_page *_findPageNeighbours(const record_internal_id &parentRecord, int &leftPrevPageId, int &rightNextPageId);
         bool _tryTakeFromNearest(db_page *page, db_page *parentPage, int parentRecPos,
                                  db_page *leftPrevPage, db_page *rightNextPage);
         void _mergePages(db_page *page, int parentRecordPos, db_page *parentPage, db_page *rightNextPage,

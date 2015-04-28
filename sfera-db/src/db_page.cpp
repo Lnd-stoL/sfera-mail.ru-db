@@ -137,16 +137,16 @@ db_page::db_page(int index, data_blob pageBytes) :
     _index(index),
     _pageSize(pageBytes.length()),
     _pageBytes(pageBytes.dataPtr())
-{
-    _indexTable = _pageBytes + 2 * sizeof(uint16_t) + 1;
-}
+{  }
 
 
 void db_page::_initializeEmpty(bool hasLinks)
 {
+    _indexTable = _pageBytes + 2 * sizeof(uint16_t) + 1;
+
     _hasLinks = hasLinks;
     _wasChanged = true;
-    _pageBytesUint16(0, 0);                      // recordAt count
+    _pageBytesUint16(0, 0);                      // record count
 
     _dataBlockEndOffset = _pageSize;
     _pageBytesUint16(0, (uint16_t) _dataBlockEndOffset);    // data block end offset
@@ -272,6 +272,8 @@ void db_page::prepareForWriting()
 
 void db_page::_load()
 {
+    _indexTable = _pageBytes + 2 * sizeof(uint16_t) + 1;
+
     _recordCount = _pageBytesUint16(0);
     _dataBlockEndOffset = _pageBytesUint16(sizeof(uint16_t));
     _hasLinks = _pageBytes[2*sizeof(uint16_t)] != 0;
@@ -280,10 +282,7 @@ void db_page::_load()
 
 db_page::~db_page()
 {
-    if (_pageBytes) {
-        free(_pageBytes);
-        _pageBytes = nullptr;
-    }
+    _destructThis();
 }
 
 
@@ -364,37 +363,42 @@ void db_page::replace(int position, data_blob newValue)
     assert( position >= 0 && position < _recordCount );
 
     auto index = _recordIndex(position);
-    data_blob key((uint8_t *)::malloc(index.keyLength), index.keyLength);
+    data_blob_copy key(data_blob((uint8_t *)::malloc(index.keyLength), index.keyLength));
     std::copy(_pageBytes + index.keyValueOffset, _pageBytes + index.keyValueOffset + index.keyLength, key.dataPtr());
     int linked = -1;
     if (_hasLinks) linked = childAt(position);
 
     remove(position);
     insert(position, key_value(key, newValue), linked);
-    //key.free();
+    key.release();
 }
 
 
-db_page* db_page::splitEquispace(db_page *rightPage, int& medianPosition)
+key_value_copy db_page::splitEquispace(db_page *rightPage)
 {
     assert( _pageBytes != nullptr );
     assert( _recordCount >= 3 );    // at least 3 records for correct split
 
-    db_page * leftPage = new db_page(_index, data_blob((uint8_t *)::malloc(_pageSize), _pageSize));
-    leftPage->_initializeEmpty(_hasLinks);
+    // the way is to create proxy in-memory page and copy half of records into that page
+    // then replace *this* page with proxy page's content (dirty enoughf)
+    // this is done because insertion in page is much faster than removing now
+    db_page *leftProxyPage = new db_page(_index, data_blob((uint8_t *)::calloc(_pageSize, 1), _pageSize));
+    leftProxyPage->_initializeEmpty(_hasLinks);
+
+    size_t allocatedSpace = (_pageSize - _dataBlockEndOffset);
+    size_t neededSize = (allocatedSpace - (allocatedSpace / _recordCount)) / 2;
 
     size_t accumulatedSize = 0;
-    size_t neededSize = (_pageSize - _freeBytes()) / 2;
     int copiedRecordCount = 0;
 
     for (; copiedRecordCount < _recordCount-2 && (accumulatedSize < neededSize || copiedRecordCount < 1); ++copiedRecordCount) {
-        accumulatedSize += _recordIndex(copiedRecordCount).length() + _recordIndexSize();
-        leftPage->insert(copiedRecordCount, recordAt(copiedRecordCount));
-        if (_hasLinks) leftPage->reconnect(copiedRecordCount, childAt(copiedRecordCount));
+        accumulatedSize += _recordIndex(copiedRecordCount).length();
+        leftProxyPage->insert(copiedRecordCount, recordAt(copiedRecordCount));
+        if (_hasLinks) leftProxyPage->reconnect(copiedRecordCount, childAt(copiedRecordCount));
     }
-    if (_hasLinks) leftPage->reconnect(copiedRecordCount, childAt(copiedRecordCount));
+    if (_hasLinks) leftProxyPage->reconnect(copiedRecordCount, childAt(copiedRecordCount));
 
-    medianPosition = copiedRecordCount++;
+    int medianPosition = copiedRecordCount++;
 
     for (int i = 0; copiedRecordCount < _recordCount; ++copiedRecordCount, ++i) {
         rightPage->insert(i, recordAt(copiedRecordCount));
@@ -402,8 +406,11 @@ db_page* db_page::splitEquispace(db_page *rightPage, int& medianPosition)
     }
     if (_hasLinks) rightPage->reconnect((int) rightPage->recordCount(), lastRightChild());
 
-    _wasChanged = false;
-    return leftPage;
+    key_value_copy medianElement(this->recordAt(medianPosition));
+    this->moveContentFrom(leftProxyPage);
+    delete leftProxyPage;
+
+    return medianElement;
 }
 
 
@@ -446,4 +453,24 @@ size_t db_page::usedBytesFor(int position) const
 key_value db_page::recordAt(int position) const
 {
     return key_value(this->keyAt(position), this->valueAt(position));
+}
+
+
+void db_page::_destructThis()
+{
+    if (_pageBytes) {
+        free(_pageBytes);
+        _pageBytes = nullptr;
+    }
+}
+
+
+void db_page::moveContentFrom(db_page *srcPage)
+{
+    srcPage->prepareForWriting();
+    _pageBytes = srcPage->_pageBytes;
+    srcPage->_pageBytes = nullptr;     // to avoid free in srcPage's destructor
+
+    this->_load();                     // update cached members from _pageBytes
+    _wasChanged = srcPage->_wasChanged;
 }

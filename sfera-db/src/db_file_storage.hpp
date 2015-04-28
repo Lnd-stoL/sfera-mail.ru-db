@@ -38,8 +38,8 @@ namespace sfera_db
         off_t  _pagesMetaTableStartOffset = 0;
         uint8_t *_pagesMetaTable = nullptr;
 
-        db_page* _rootPage = nullptr;
         pages_cache _pagesCache;
+        int _rootPageId = -1;
 
 
     private:
@@ -55,10 +55,10 @@ namespace sfera_db
         void  _updatePageMetaInfo(int pageIndex, bool allocated);
         void  _diskWriteRootPageId();
         off_t _pageOffset(int pageID) const;
-
+        void  _realWritePage(db_page *page);
 
     private:
-        db_file_storage() : _pagesCache(0) { };
+        db_file_storage() : _pagesCache(0, [this](db_page *page) { _realWritePage(page); }) { };
 
     public:
         ~db_file_storage();
@@ -72,12 +72,13 @@ namespace sfera_db
         void writePage(db_page *page);
         void writeAndRelease(db_page *page);
 
-        void deallocatePage(db_page *page);
+        void deallocatePage(int pageId);
         void deallocateAndRelease(db_page *page);
 
-        db_page* allocateNewRootPage();
-        void changeRootPage(db_page *page);
-        inline db_page* rootPage() const  { return _rootPage; }
+        //db_page* allocateNewRootPage();
+        void changeRootPage(int pageId);
+
+        inline int rootPageId() const  { return _rootPageId; }
     };
 
 }

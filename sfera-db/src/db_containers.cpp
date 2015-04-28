@@ -28,6 +28,7 @@ sfera_db::data_blob sfera_db::data_blob::fromCopyOf(const std::string &str)
 
 sfera_db::data_blob_copy::data_blob_copy(sfera_db::data_blob src)
 {
+    _length = src.length();
     _dataPtr = (uint8_t *)malloc(src.length());
     std::copy(src.dataPtr(), src.dataEndPtr(), _dataPtr);
 }

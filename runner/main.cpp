@@ -50,14 +50,14 @@ int main(int argc, char *argv[]) {
 		auto op = it->as<std::vector<std::string>>();
 		int retval = 0;
 		if (op[0] == std::string("put")) {
-			//if (!silent) std::cout << "put " << op[1] << " " << op[2] << std::endl;
+                        //if (!silent) std::cout << "put " << op[1] << " " << op[2] << std::endl;
 			clock_gettime(CLOCK_MONOTONIC, &t1);
 			retval = db->put(op[1], op[2]);
 			clock_gettime(CLOCK_MONOTONIC, &t2);
 			time += (t2.tv_sec - t1.tv_sec) * 1e9 + (t2.tv_nsec - t1.tv_nsec);
 
 		} else if (op[0] == std::string("get")) {
-			//if (!silent) std::cout << "get " << op[1] << std::endl;
+                        //if (!silent) std::cout << "get " << op[1] << std::endl;
 			char *val = nullptr;
 			size_t val_size = 0;
 			clock_gettime(CLOCK_MONOTONIC, &t1);

@@ -113,7 +113,7 @@ namespace sfera_db
     private:
         record_index _recordIndex(int position) const;
         void _insertRecordIndex(int position, const record_index& recordIndex, int linked);
-
+        void _destructThis();
 
     private:
         db_page(int index, data_blob pageBytes);
@@ -123,10 +123,10 @@ namespace sfera_db
 
     public:
         ~db_page();
-
         static db_page* load(int index, data_blob pageBytes);
         static db_page* createEmpty(int index, data_blob pageBytes, bool isLeaf);
 
+        void moveContentFrom(db_page* srcPage);
         void prepareForWriting();
 
         size_t usedBytes() const;
@@ -155,7 +155,7 @@ namespace sfera_db
         void replace(int position, const key_value & element, int linked = -1);
         bool canReplace(int position, data_blob newValue) const;
 
-        db_page* splitEquispace(db_page * rightPage, int& medianPosition);
+        key_value_copy splitEquispace(db_page *rightPage);
 
         inline  size_t    size()       const  { return _pageSize; }
         inline  int       id()         const  { return _index; }

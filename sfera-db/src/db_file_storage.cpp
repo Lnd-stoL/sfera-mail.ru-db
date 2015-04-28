@@ -64,9 +64,7 @@ auto db_file_storage::createEmpty(const std::string &fileName, db_file_storage_c
 
 db_file_storage::~db_file_storage()
 {
-    if (_rootPage != nullptr) {
-        delete _rootPage;
-    }
+    _pagesCache.clearCache();
 
     if (_pagesMetaTable) {
         ::free(_pagesMetaTable);
@@ -90,17 +88,13 @@ void db_file_storage::_initializeEmpty(size_t maxStorageSize)
     _lastFreePage_InfileOffset = offset;
     offset = _rawFileWrite(offset, &_lastFreePage, sizeof(_lastFreePage));
     _rootPageId_InfileOffset = offset;
-    offset += sizeof(_rootPage->id());
+    offset += sizeof(int); // root page id placeholder
 
     _pagesMetaTableStartOffset = (size_t) offset;
     _ensureFileSize(offset + _pagesMetaTableSize);
 
     _pagesStartOffset = offset + _pagesMetaTableSize;
     _pagesMetaTable = (uint8_t*) calloc(_pagesMetaTableSize, 1);
-
-    _rootPage = this->allocatePage(true);
-    this->writePage(_rootPage);
-    _diskWriteRootPageId();
 }
 
 
@@ -111,8 +105,7 @@ void db_file_storage::_load()
 
     offset = _rawFileRead(offset, &_maxPageCount, sizeof(_maxPageCount));
     offset = _rawFileRead(offset, &_lastFreePage, sizeof(_lastFreePage));
-    int rootPageId = _rootPage->id();
-    offset = _rawFileRead(offset, &rootPageId,    sizeof(rootPageId));
+    offset = _rawFileRead(offset, &_rootPageId,   sizeof(_rootPageId));
 
     _pagesMetaTableStartOffset = offset;
     _initPagesMetaTableByteSize();
@@ -225,22 +218,8 @@ void db_file_storage::writePage(db_page *page)
         }
 #endif
 
-    page->prepareForWriting();
-    _rawFileWrite(_pageOffset(page->id()), page->bytes(), page->size());
+    _pagesCache.makeDirty(page);
     page->wasSaved();
-}
-
-
-db_page* db_file_storage::allocateNewRootPage()
-{
-    db_page *rootPage = _rootPage;   // this is to be able to unload page with releasePage()
-    _rootPage = nullptr;
-    this->releasePage(rootPage);      // unload will actually happen because _rootPage is now nullptr
-
-    _rootPage = this->allocatePage(false);
-    _diskWriteRootPageId();
-
-    return _rootPage;
 }
 
 
@@ -256,24 +235,26 @@ db_page* db_file_storage::allocatePage(bool isLeaf)
     _ensureFileSize(_pageOffset(pageId) + _pageSize);
 
     uint8_t *rawPageBytes = (uint8_t *)::calloc(_pageSize, 1);
-    return db_page::createEmpty(pageId, data_blob(rawPageBytes, _pageSize), isLeaf);
+    db_page *page = db_page::createEmpty(pageId, data_blob(rawPageBytes, _pageSize), isLeaf);
+    _pagesCache.cacheAndPin(page);
+
+    return page;
 }
 
 
-void db_file_storage::deallocatePage(db_page *page)
+void db_file_storage::deallocatePage(int pageId)
 {
-    assert( page != nullptr );
+    assert( pageId >= 0 && pageId < _maxPageCount );
 
-    _lastFreePage = page->id() - 1;
-    _updatePageMetaInfo(page->id(), false);
+    _lastFreePage = pageId - 1;
+    _updatePageMetaInfo(pageId, false);
+    _pagesCache.invalidateCachedPage(pageId);
 }
 
 
 db_page* db_file_storage::fetchPage(int pageId)
 {
     assert( pageId >= 0 && pageId < _maxPageCount );
-    if (pageId == _rootPage->id())  return _rootPage;    // don't actually load root page
-                                                         // cause it is always in memory by design
 
     db_page *cachedVersion = _pagesCache.fetchAndPin(pageId);
     if (cachedVersion == nullptr) {
@@ -289,34 +270,33 @@ db_page* db_file_storage::fetchPage(int pageId)
 }
 
 
-void db_file_storage::changeRootPage(db_page *page)
+void db_file_storage::changeRootPage(int pageId)
 {
-    assert( page != nullptr );
+    assert( pageId >= 0 && pageId < _maxPageCount );
 
-    _rootPage = page;
+    _rootPageId = pageId;
     _diskWriteRootPageId();
 }
 
 
 void db_file_storage::_diskWriteRootPageId()
 {
-    int rootPageId = _rootPage->id();
-    _rawFileWrite(_rootPageId_InfileOffset, &rootPageId, sizeof(rootPageId));
+    _rawFileWrite(_rootPageId_InfileOffset, &_rootPageId, sizeof(_rootPageId));
 }
 
 
 void db_file_storage::releasePage(db_page *page)
 {
-    assert( !page->wasChanged() );    // normally the page has to be written to disk before unloading if it has been changed
+    assert( page != nullptr );
+    assert( !page->wasChanged() );    // normally the page has to be written to disk before releasing if it has been changed
 
-    if (page == _rootPage)  return;   // don't actually unload root page
     _pagesCache.unpin(page);
 }
 
 
 void db_file_storage::deallocateAndRelease(db_page *page)
 {
-    this->deallocatePage(page);
+    this->deallocatePage(page->id());
     this->releasePage(page);
 }
 
@@ -325,4 +305,11 @@ void db_file_storage::writeAndRelease(db_page *page)
 {
     this->writePage(page);
     this->releasePage(page);
+}
+
+
+void db_file_storage::_realWritePage(db_page *page)
+{
+    page->prepareForWriting();
+    _rawFileWrite(_pageOffset(page->id()), page->bytes(), page->size());
 }
