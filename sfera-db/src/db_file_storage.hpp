@@ -58,7 +58,7 @@ namespace sfera_db
         void  _realWritePage(db_page *page);
 
     private:
-        db_file_storage() : _pagesCache(0, [this](db_page *page) { _realWritePage(page); }) { };
+        db_file_storage() : _pagesCache(16, [this](db_page *page) { _realWritePage(page); }) { };
 
     public:
         ~db_file_storage();

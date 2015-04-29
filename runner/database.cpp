@@ -50,7 +50,7 @@ Database::Database(const char *so_path, const char *db_path) {
 		std::cout << "Error while loading dbopen: " << dlerror() << '\n';
 		std::cout << "Skipping\n";
 	}
-	struct DBC config = {256*1024*1024, 512, 256*1024};
+        struct DBC config = {256*1024*1024, 1024, 256*1024};
 	this->db_object = this->create_function((char *)this->db_path.c_str(), &config);
 	if (!this->db_object) {
 		std::cout << "Error while creating DB\n";
@@ -79,8 +79,8 @@ int Database::get(const std::string& key, char **val, size_t *val_size) {
 
 int Database::del(const std::string& key) {
 	int retval = this->del_function(this->db_object, key.c_str(), key.size());
-	if (retval != 0)
-		std::cerr << "Error, while deleting \"" << key << "\"\n";
+        //if (retval != 0)
+        //	std::cerr << "Error, while deleting \"" << key << "\"\n";
 	return retval;
 }
 

@@ -178,7 +178,6 @@ int db_page::childAt(int position) const
     assert( _hasLinks );
     assert( position >= 0 && position <= _recordCount );
 
-    if (!hasLinks())  return 0;
     return *(int32_t *)(_recordIndexRawPtr(position) + 3);
 }
 
