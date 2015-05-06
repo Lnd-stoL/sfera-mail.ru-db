@@ -1,12 +1,12 @@
 
 #include "database.hpp"
-#include "syscall_checker.h"
+#include "syscall_checker.hpp"
 
 #include <cassert>
 #include <algorithm>
 #include <cstring>
 #include <sstream>
-#include <unistd.h>
+
 #include <sys/stat.h>
 
 //----------------------------------------------------------------------------------------------------------------------
@@ -22,12 +22,13 @@ auto database::createEmpty(const std::string &path, database_config const &confi
         syscall_check( ::mkdir(path.c_str(), 0777) );
     }
 
-    db_file_storage_config dbStorageCfg;
+    db_data_storage_config dbStorageCfg;
     dbStorageCfg.maxStorageSize = config.maxDBSize;
     dbStorageCfg.pageSize = config.pageSizeBytes;
+    dbStorageCfg.cacheSizeInPages = config.cacheSizePages;
 
     database *db = new database();
-    db->_fileStorage = db_file_storage::createEmpty(path + "/" + db->MainStorageFileName, dbStorageCfg);
+    db->_fileStorage = db_data_storage::createEmpty(path, dbStorageCfg);
 
     db_page *rootPage = db->_fileStorage->allocatePage(true);
     db->_fileStorage->changeRootPage(rootPage->id());
@@ -41,7 +42,7 @@ auto database::createEmpty(const std::string &path, database_config const &confi
 auto database::openExisting(const std::string &path) -> database *
 {
     database *db = new database();
-    db->_fileStorage = db_file_storage::openExisting(path + "/" + db->MainStorageFileName);
+    db->_fileStorage = db_data_storage::openExisting(path);
     return db;
 }
 
@@ -64,7 +65,7 @@ data_blob database::get(data_blob key)
     if (lookupResult.empty())  return data_blob();
 
     db_page *page = _fileStorage->fetchPage(lookupResult.requestedRecord.pageId);
-    auto value = _copyDataFromLoadedPage(page->valueAt(lookupResult.requestedRecord.inPagePosition));
+    auto value = data_blob_copy(page->valueAt(lookupResult.requestedRecord.inPagePosition));
     _fileStorage->releasePage(page);
 
     return value;
@@ -115,14 +116,6 @@ bool database::_keysEqual(data_blob key1, data_blob key2)
 {
     if (key1.length() != key2.length())  return false;
     return memcmp(key1.dataPtr(), key2.dataPtr(), key1.length()) == 0;
-}
-
-
-data_blob database::_copyDataFromLoadedPage(data_blob src) const
-{
-    uint8_t *copyPtr = (uint8_t *)malloc(src.length());
-    std::copy(src.dataPtr(), src.dataEndPtr(), copyPtr);
-    return data_blob(copyPtr, src.length());
 }
 
 
@@ -316,12 +309,6 @@ void database::_mergePages(db_page *page, int parentRecordPos, db_page *parentPa
         parentPage->remove(parentRecordPos-1);
     }
 }
-
-
-key_value database::_copyDataFromLoadedPage(key_value src) const
-{
-    return key_value(_copyDataFromLoadedPage(src.key), _copyDataFromLoadedPage(src.value));
-};
 
 
 string database::dump() const

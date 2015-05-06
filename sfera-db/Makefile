@@ -2,7 +2,7 @@
 CPP_COMPILER      := clang++ -stdlib=libc++ -fprofile-instr-use=../runner/code.profdata
 #CPP_COMPILER      := g++
 
-SRC_FILES         := src/libsfera_db.cpp src/pages_cache.cpp src/db_containers.cpp src/db_page.cpp src/db_file_storage.cpp src/database.cpp
+SRC_FILES         := src/*.cpp
 OUTPUT_PATH       := ./bin/lib/libsfera_db.so
 
 GXX_OPTIONS       := -std=c++11 -march=native
@@ -12,7 +12,13 @@ GXX_OPTIONS_DYLIB := -shared -fPIC
 all: lib
 
 lib:
-	$(CPP_COMPILER) $(GXX_OPTIONS) $(GXX_OPTIONS_DYLIB) -g -O3 -DNDEBUG -o $(OUTPUT_PATH) $(SRC_FILES)
+	cat src/*.cpp > src/~all-src.cpp
+	$(CPP_COMPILER) $(GXX_OPTIONS) $(GXX_OPTIONS_DYLIB) -g -O4 -DNDEBUG -o $(OUTPUT_PATH) src/~all-src.cpp
+	rm src/~all-src.cpp
+
+lib_separated:
+	$(CPP_COMPILER) $(GXX_OPTIONS) $(GXX_OPTIONS_DYLIB) -g -O4 -DNDEBUG -o $(OUTPUT_PATH) $(SRC_FILES)
+
 
 lib_dbg:
 	$(CPP_COMPILER) $(GXX_OPTIONS) $(GXX_OPTIONS_DYLIB) -g  -o $(OUTPUT_PATH) $(SRC_FILES)

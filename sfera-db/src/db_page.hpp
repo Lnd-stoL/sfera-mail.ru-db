@@ -64,8 +64,8 @@ namespace sfera_db
 
 
     private:
-        static const int minimallyFullPercent = 45;
-        static const int maximallyFullPercent = 75;
+        static const int minimallyFullPercent = 47;
+        static const int maximallyFullPercent = 80;
 
 
     private:

@@ -4,7 +4,7 @@
 
 //----------------------------------------------------------------------------------------------------------------------
 
-#include "db_file_storage.hpp"
+#include "db_data_storage.hpp"
 
 //----------------------------------------------------------------------------------------------------------------------
 
@@ -50,11 +50,7 @@ namespace sfera_db
 //----------------------------------------------------------------------------------------------------------------------
 
     private:
-        const std::string MainStorageFileName = "data.sdbs";
-        const std::string LogFileName         = "log.sdbl";
-
-    private:
-        db_file_storage *_fileStorage = nullptr;
+        db_data_storage *_fileStorage = nullptr;
 
     private:
         record_lookup_result _rKeyLookup(int pageId, int parentPageId, int parentRecordPos, data_blob key);
@@ -76,8 +72,6 @@ namespace sfera_db
         void _mergePages(db_page *page, int parentRecordPos, db_page *parentPage, db_page *rightNextPage,
                          db_page *leftPrevPage);
 
-        data_blob _copyDataFromLoadedPage(data_blob src) const;
-        key_value _copyDataFromLoadedPage(key_value src) const;
         void _dump(std::ostringstream &info, int pageId) const;
         void _rDumpSortedKeys(std::ostringstream &info, int pageId) const;
 

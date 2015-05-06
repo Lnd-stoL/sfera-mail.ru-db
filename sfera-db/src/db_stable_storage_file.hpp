@@ -1,29 +1,22 @@
 
-#ifndef _DB_FILE_INCLUDED_
-#define _DB_FILE_INCLUDED_
+#ifndef SFERA_DB_DB_STABLE_STORAGE_FILE_H
+#define SFERA_DB_DB_STABLE_STORAGE_FILE_H
 
 //----------------------------------------------------------------------------------------------------------------------
 
-#include "pages_cache.h"
+#include "raw_file.hpp"
+#include "db_page.hpp"
+#include "db_data_storage_config.hpp"
 
 //----------------------------------------------------------------------------------------------------------------------
 
 namespace sfera_db
 {
 
-    struct db_file_storage_config
-    {
-        size_t pageSize       = 4096;
-        size_t maxStorageSize = 0;
-    };
-
-//----------------------------------------------------------------------------------------------------------------------
-
-    class db_file_storage
+    class db_stable_storage_file
     {
     private:
-        int    _unixFD = -1;
-        size_t _actualFileSize = 0;
+        raw_file *_file = nullptr;
 
         off_t  _pageSize_InfileOffset     = 0;
         off_t  _lastFreePage_InfileOffset = 0;
@@ -38,7 +31,6 @@ namespace sfera_db
         off_t  _pagesMetaTableStartOffset = 0;
         uint8_t *_pagesMetaTable = nullptr;
 
-        pages_cache _pagesCache;
         int _rootPageId = -1;
 
 
@@ -47,42 +39,32 @@ namespace sfera_db
         void _load();
         void _initPagesMetaTableByteSize();
 
-        void  _ensureFileSize(size_t neededSize);
-        off_t _rawFileWrite(off_t offset, const void *data, size_t length) const;
-        off_t _rawFileRead(off_t offset, void *data, size_t length)  const;
-
         int   _getNextFreePageIndex();
         void  _updatePageMetaInfo(int pageIndex, bool allocated);
         void  _diskWriteRootPageId();
         off_t _pageOffset(int pageID) const;
-        void  _realWritePage(db_page *page);
 
     private:
-        db_file_storage() : _pagesCache(16, [this](db_page *page) { _realWritePage(page); }) { };
+        db_stable_storage_file() { };
 
     public:
-        ~db_file_storage();
-        static db_file_storage* openExisting(std::string const &fileName);
-        static db_file_storage* createEmpty(std::string const &fileName, db_file_storage_config const &config);
+        ~db_stable_storage_file();
+        static db_stable_storage_file * openExisting(std::string const &fileName);
+        static db_stable_storage_file * createEmpty(std::string const &fileName, db_data_storage_config const &config);
 
-        db_page* fetchPage(int pageId);
+        db_page*loadPage(int pageId);
         db_page* allocatePage(bool isLeaf);
-        void releasePage(db_page *page);
 
         void writePage(db_page *page);
-        void writeAndRelease(db_page *page);
-
         void deallocatePage(int pageId);
-        void deallocateAndRelease(db_page *page);
-
-        //db_page* allocateNewRootPage();
         void changeRootPage(int pageId);
 
         inline int rootPageId() const  { return _rootPageId; }
     };
 
+
 }
 
 //----------------------------------------------------------------------------------------------------------------------
 
-#endif
+#endif    //SFERA_DB_DB_STABLE_STORAGE_FILE_H

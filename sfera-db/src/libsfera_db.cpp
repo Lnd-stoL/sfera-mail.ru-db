@@ -2,7 +2,7 @@
 #include "libsfera_db.h"
 
 #include "database.hpp"
-#include "syscall_checker.h"
+#include "syscall_checker.hpp"
 
 #include <iostream>
 
@@ -39,6 +39,7 @@ database* dbcreate(const char *file, DBC *conf)
 		database_config dbConfig;
 		dbConfig.pageSizeBytes = conf->page_size;
 		dbConfig.maxDBSize = conf->db_size;
+		dbConfig.cacheSizePages = conf->cache_size / conf->page_size;
 
 		database *db = database::createEmpty(file, dbConfig);
 		return db;
@@ -75,7 +76,8 @@ int db_delete(database *db, void *key, size_t length)
 extern "C"
 int db_select(database *db, void *key, size_t keyLength, void **pVal, size_t *pValLength)
 {
-	if (db == nullptr)  return -1;
+	if (db == nullptr || key == nullptr || keyLength == 0 || pVal == nullptr || pValLength == nullptr)
+		return -1;
 
 	try {
 		data_blob result = db->get(data_blob((uint8_t *)key, keyLength));
@@ -96,7 +98,8 @@ int db_select(database *db, void *key, size_t keyLength, void **pVal, size_t *pV
 extern "C"
 int db_insert(database *db, void *key, size_t keyLength, void *value, size_t valueLength)
 {
-	if (db == nullptr)  return -1;
+	if (db == nullptr || key == nullptr || keyLength == 0 || value == nullptr || valueLength == 0)
+		return -1;
 
 	try {
 		db->insert(data_blob((uint8_t *)key, keyLength), data_blob((uint8_t *)value, valueLength));
