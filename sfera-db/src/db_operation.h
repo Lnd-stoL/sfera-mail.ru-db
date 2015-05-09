@@ -26,6 +26,8 @@ namespace sfera_db
         void writesPage(db_page* page);
         void invalidatePage(int pageId);
 
+        bool isReadOnly();
+
         inline uint64_t id() const  { return _id; }
         inline const std::unordered_map<int, db_page*>& pagesWriteSet()  { return _pagesWriteSet; }
     };

@@ -19,7 +19,7 @@ auto db_data_storage::openExisting(const std::string &dirPath, const db_data_sto
     dbDataStorage->_stableStorageFile = db_stable_storage_file::openExisting(dirPath + "/" +
                                                                                      dbDataStorage->StableStorageFileName);
     dbDataStorage->_initializeCache(params.cacheSizeInPages);
-    dbDataStorage->_binlog = db_binlog::openExisting(dirPath + "/" + dbDataStorage->LogFileName);
+    dbDataStorage->_binlog = db_binlog_logger::openExisting(dirPath + "/" + dbDataStorage->LogFileName);
 
     return dbDataStorage;
 }
@@ -32,7 +32,7 @@ auto db_data_storage::createEmpty(const std::string &dirPath, db_data_storage_co
                                                                             dbDataStorage->StableStorageFileName,
                                                                             config);
     dbDataStorage->_initializeCache(config.cacheSizeInPages);
-    dbDataStorage->_binlog = db_binlog::createEmpty(dirPath + "/" + dbDataStorage->LogFileName);
+    dbDataStorage->_binlog = db_binlog_logger::createEmpty(dirPath + "/" + dbDataStorage->LogFileName);
 
     return dbDataStorage;
 }
@@ -135,11 +135,14 @@ void db_data_storage::onOperationStart(db_operation *op)
 
 void db_data_storage::onOperationEnd()
 {
-    auto activeWriteSet = _currentOperation->pagesWriteSet();
-    for (auto pageWritten : activeWriteSet) {
-        _pagesCache->unpin(pageWritten.second);
+    if (!_currentOperation->isReadOnly()) {
+        auto activeWriteSet = _currentOperation->pagesWriteSet();
+        for (auto pageWritten : activeWriteSet) {
+            _pagesCache->unpin(pageWritten.second);
+        }
+
+        _binlog->logOperation(_currentOperation);
     }
 
-    _binlog->logOperation(_currentOperation);
     _currentOperation = nullptr;
 }

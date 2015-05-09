@@ -6,7 +6,7 @@
 
 #include "pages_cache.hpp"
 #include "db_stable_storage_file.hpp"
-#include "db_binlog.hpp"
+#include "db_binlog_logger.hpp"
 
 //----------------------------------------------------------------------------------------------------------------------
 
@@ -29,7 +29,7 @@ namespace sfera_db
     private:
         pages_cache *_pagesCache = nullptr;
         db_stable_storage_file *_stableStorageFile = nullptr;
-        db_binlog *_binlog = nullptr;
+        db_binlog_logger *_binlog = nullptr;
 
         db_operation *_currentOperation = nullptr;
 

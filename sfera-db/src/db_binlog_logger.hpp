@@ -58,7 +58,7 @@ namespace sfera_db
 
     //----------------------------------------------------------------------------------------------------------------------
 
-    class db_binlog
+    class db_binlog_logger
     {
     public:
 
@@ -70,12 +70,12 @@ namespace sfera_db
         void _writeNextRecord(binlog_record &rec);
 
     private:
-        db_binlog() { };
+        db_binlog_logger() { };
 
     public:
-        ~db_binlog();
-        static db_binlog *createEmpty(const std::string& path);
-        static db_binlog *openExisting(const std::string& path);
+        ~db_binlog_logger();
+        static db_binlog_logger *createEmpty(const std::string& path);
+        static db_binlog_logger *openExisting(const std::string& path);
 
         void logOperation(db_operation *operation);
     };

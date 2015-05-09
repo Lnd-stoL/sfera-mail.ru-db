@@ -1,5 +1,5 @@
 
-#include "db_binlog.hpp"
+#include "db_binlog_logger.hpp"
 
 #include <assert.h>
 
@@ -119,39 +119,39 @@ bool binlog_operation_record::readFrom(raw_file *file)
 
 //----------------------------------------------------------------------------------------------------------------------
 
-db_binlog *db_binlog::createEmpty(const std::string &path)
+db_binlog_logger *db_binlog_logger::createEmpty(const std::string &path)
 {
-    db_binlog *binlog = new db_binlog();
+    db_binlog_logger *binlog = new db_binlog_logger();
     binlog->_file = raw_file::createNew(path);
 
     return binlog;
 }
 
 
-db_binlog *db_binlog::openExisting(const std::string &path)
+db_binlog_logger *db_binlog_logger::openExisting(const std::string &path)
 {
-    db_binlog *binlog = new db_binlog();
+    db_binlog_logger *binlog = new db_binlog_logger();
     binlog->_file = raw_file::openExisting(path);
 
     return binlog;
 }
 
 
-void db_binlog::_writeNextRecord(binlog_record &rec)
+void db_binlog_logger::_writeNextRecord(binlog_record &rec)
 {
     rec.writeTo(_file);
     ++_currentLSN;
 }
 
 
-db_binlog::~db_binlog()
+db_binlog_logger::~db_binlog_logger()
 {
     binlog_record opClose(binlog_record::LOG_CLOSED, _currentLSN);
     _writeNextRecord(opClose);
 }
 
 
-void db_binlog::logOperation(db_operation *operation)
+void db_binlog_logger::logOperation(db_operation *operation)
 {
     binlog_operation_record rec(binlog_record::OPERATION, _currentLSN, operation);
     _writeNextRecord(rec);

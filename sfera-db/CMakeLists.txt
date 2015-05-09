@@ -22,4 +22,4 @@ set(SOURCE_FILES
     src/db_data_storage_config.hpp
     )
 
-add_executable(sfera-db ${SOURCE_FILES} src/db_binlog.cpp src/db_binlog.hpp src/db_operation.cpp src/db_operation.h)
+add_executable(sfera-db ${SOURCE_FILES} src/db_binlog_logger.cpp src/db_binlog_logger.hpp src/db_operation.cpp src/db_operation.h)

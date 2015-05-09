@@ -21,3 +21,9 @@ void db_operation::invalidatePage(int pageId)
 
     _pagesWriteSet.erase(pageIt);
 }
+
+
+bool db_operation::isReadOnly()
+{
+    return _pagesWriteSet.empty();
+}
