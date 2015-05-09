@@ -1,7 +1,7 @@
 ---
 get: 40
-put: 30
-del: 30
+put: 40
+del: 20
 distrib: 'latest'
 ops: 25000
 ...

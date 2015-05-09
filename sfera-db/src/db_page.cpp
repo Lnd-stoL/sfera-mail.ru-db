@@ -5,10 +5,11 @@
 //
 //  offset |  size  |  field meaning
 //  --------------------------------------------------------------------------------------------------------------------
-//  0      | uint16 | recordAt count the page contains (record = key+valueAt entry and a childAt to the child btree node)
-//  2      | uint16 | data_block_end (the data contains of keys and values BLOBs and is placed to the end of the page)
-//  4      | byte   | meta information (actually a byte indicating if the page is btree leaf [0] or not [1])
-//  5      | ------ | data entry index blocks:
+//  0       | uint64 | last operation id that modified the page
+//  8       | uint16 | record count the page contains (record = key+valueAt entry and a childAt to the child btree node)
+//  10      | uint16 | data_block_end (the data contains of keys and values BLOBs and is placed to the end of the page)
+//  12      | byte   | meta information (actually a byte indicating if the page is btree leaf [0] or not [1])
+//  13      | ------ | data entry index blocks:
 //                      block consists of three integers ( uint16 ) + one 32-bit integer
 //                          at 0 - key_value blob offset within the page
 //                          at 2 - key length in bytes
@@ -88,15 +89,16 @@ int db_page::key_iterator::operator-(db_page::key_iterator const &rhs)
 }
 
 
-db_page::key_iterator
+db_page::key_iterator&
 db_page::key_iterator::operator += (int offset)
 {
-    int newPosition = (int)_position + offset;
-    if (newPosition >= _page->recordCount() || newPosition < 0) {
+    int newPosition = _position + offset;
+    if (newPosition >= _page->recordCount()) {
         *this = _page->keysEnd();
+    } else {
+        _position = newPosition;
     }
 
-    *this = db_page::key_iterator(_page, newPosition);
     return *this;
 }
 
@@ -108,7 +110,7 @@ db_page::key_iterator::value() const
 }
 
 
-int db_page::key_iterator::link() const
+int db_page::key_iterator::child() const
 {
     return _page->childAt(_position);
 }
@@ -142,15 +144,18 @@ db_page::db_page(int index, data_blob pageBytes) :
 
 void db_page::_initializeEmpty(bool hasLinks)
 {
-    _indexTable = _pageBytes + 2 * sizeof(uint16_t) + 1;
+    _indexTable = _pageBytes + 2 * sizeof(uint16_t) + sizeof(uint64_t) + 1;
 
     _hasLinks = hasLinks;
+    _recordIndexSize = _calcRecordIndexSize();
     _wasChanged = true;
-    _pageBytesUint16(0, 0);                      // record count
+
+    //_pageBytesUint64(sizeof(uint64_t), 0);                      // last modified operation id
+    //_pageBytesUint16(sizeof(uint64_t), 0);                      // record count
 
     _dataBlockEndOffset = _pageSize;
-    _pageBytesUint16(0, (uint16_t) _dataBlockEndOffset);    // data block end offset
-    _pageBytes[2*sizeof(uint16_t)] = (uint8_t) hasLinks;
+    //_pageBytesUint16(0, (uint16_t) _dataBlockEndOffset);    // data block end offset
+    _pageBytes[2*sizeof(uint16_t) + sizeof(uint64_t)] = (uint8_t) hasLinks;
 }
 
 
@@ -166,7 +171,7 @@ size_t db_page::recordCount() const
 }
 
 
-bool db_page::hasLinks() const
+bool db_page::hasChildren() const
 {
     return _hasLinks;
 }
@@ -209,7 +214,7 @@ void db_page::insert(int position, key_value data, int linked)
     assert( _pageBytes != nullptr );
     assert( position >= 0 && position < _recordCount+1 );
     assert( possibleToInsert(data) );
-    assert( hasLinks() || linked == -1 );
+    assert( hasChildren() || linked == -1 );
 
     _dataBlockEndOffset -= data.summLength();
     std::copy(data.key.dataPtr(), data.key.dataEndPtr(), _pageBytes + _dataBlockEndOffset);
@@ -244,11 +249,11 @@ db_page::_recordIndex(int position) const
 
 void db_page::_insertRecordIndex(int position, db_page::record_index const &recordIndex, int linked)
 {
-    assert( _auxInfoSize() + _recordIndexSize() <= _dataBlockEndOffset );
+    assert( _auxInfoSize() + _recordIndexSize <= _dataBlockEndOffset );
 
     std::copy_backward((uint8_t *)_recordIndexRawPtr(position),
                        _pageBytes + _auxInfoSize(),
-                       _pageBytes + _auxInfoSize() + _recordIndexSize());
+                       _pageBytes + _auxInfoSize() + _calcRecordIndexSize());
 
     auto rawPtr = _recordIndexRawPtr(position);
     rawPtr[0] = recordIndex.keyValueOffset;
@@ -264,18 +269,21 @@ void db_page::prepareForWriting()
 {
     assert( _pageBytes != nullptr );
 
-    _pageBytesUint16(0,                (uint16_t)_recordCount);
-    _pageBytesUint16(sizeof(uint16_t), (uint16_t)_dataBlockEndOffset);
+    _pageBytesUint64(0, _lastModifiedOpId);
+    _pageBytesUint16(sizeof(uint64_t), (uint16_t)_recordCount);
+    _pageBytesUint16(sizeof(uint16_t) + sizeof(uint64_t), (uint16_t)_dataBlockEndOffset);
 }
 
 
 void db_page::_load()
 {
-    _indexTable = _pageBytes + 2 * sizeof(uint16_t) + 1;
+    _indexTable = _pageBytes + 2 * sizeof(uint16_t) + sizeof(uint64_t) + 1;
+    _hasLinks = _pageBytes[2*sizeof(uint16_t) + sizeof(uint64_t)] != 0;
+    _recordIndexSize = _calcRecordIndexSize();
 
-    _recordCount = _pageBytesUint16(0);
-    _dataBlockEndOffset = _pageBytesUint16(sizeof(uint16_t));
-    _hasLinks = _pageBytes[2*sizeof(uint16_t)] != 0;
+    _lastModifiedOpId = _pageBytesUint64(0);
+    _recordCount = _pageBytesUint16(sizeof(uint64_t));
+    _dataBlockEndOffset = _pageBytesUint16(sizeof(uint16_t) + sizeof(uint64_t));
 }
 
 
@@ -305,7 +313,7 @@ void db_page::reconnect(int position, int childId)
 
 bool db_page::possibleToInsert(key_value element)
 {
-    return _freeBytes() >= element.summLength() + _recordIndexSize();
+    return _freeBytes() >= element.summLength() + _calcRecordIndexSize();
 }
 
 
@@ -444,8 +452,8 @@ size_t db_page::usedBytesFor(int position) const
 {
     assert( position >= 0 && (position < _recordCount  || position <= _recordCount && _hasLinks) );
 
-    if (position == _recordCount)  return _recordIndexSize();
-    return _recordIndexSize() + _recordIndex(position).length();
+    if (position == _recordCount)  return _recordIndexSize;
+    return _recordIndexSize + _recordIndex(position).length();
 }
 
 
@@ -472,4 +480,18 @@ void db_page::moveContentFrom(db_page *srcPage)
 
     this->_load();                     // update cached members from _pageBytes
     _wasChanged = srcPage->_wasChanged;
+}
+
+
+void db_page::wasSaved(uint64_t opId)
+{
+    _lastModifiedOpId = opId;
+    _wasChanged = false;
+}
+
+
+uint8_t *db_page::bytes() const
+{
+    assert( _pageBytes != nullptr );
+    return _pageBytes;
 }

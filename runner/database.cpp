@@ -50,7 +50,7 @@ Database::Database(const char *so_path, const char *db_path) {
 		std::cout << "Error while loading dbopen: " << dlerror() << '\n';
 		std::cout << "Skipping\n";
 	}
-        struct DBC config = {256*1024*1024, 1024, 256*1024};
+        struct DBC config = {256*1024*2024, 2048, 256*1024};
 	this->db_object = this->create_function((char *)this->db_path.c_str(), &config);
 	if (!this->db_object) {
 		std::cout << "Error while creating DB\n";

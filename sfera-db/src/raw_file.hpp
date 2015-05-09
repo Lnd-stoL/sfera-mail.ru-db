@@ -32,6 +32,9 @@ namespace sfera_db
         off_t writeAll(off_t offset, const void *data, size_t length);
         off_t readAll(off_t offset, void *data, size_t length) const;
 
+        void appedAll(const void *data, size_t length);
+        void appedAll(std::pair<void const *, size_t> buffers[], size_t buffersCount);
+
         inline size_t actualSize() const  { return _actualFileSize; }
     };
 

@@ -1,5 +1,5 @@
 
-CPP_COMPILER      := clang++ -stdlib=libc++ -fprofile-instr-use=../runner/code.profdata
+CPP_COMPILER      := clang++ -stdlib=libc++ #-fprofile-instr-use=../runner/code.profdata
 #CPP_COMPILER      := g++
 
 SRC_FILES         := src/*.cpp
@@ -12,9 +12,9 @@ GXX_OPTIONS_DYLIB := -shared -fPIC
 all: lib
 
 lib:
+	rm -f src/~all-src.cpp
 	cat src/*.cpp > src/~all-src.cpp
-	$(CPP_COMPILER) $(GXX_OPTIONS) $(GXX_OPTIONS_DYLIB) -g -O4 -DNDEBUG -o $(OUTPUT_PATH) src/~all-src.cpp
-	rm src/~all-src.cpp
+	$(CPP_COMPILER) $(GXX_OPTIONS) $(GXX_OPTIONS_DYLIB) -g -O3 -DNDEBUG -o $(OUTPUT_PATH) src/~all-src.cpp
 
 lib_separated:
 	$(CPP_COMPILER) $(GXX_OPTIONS) $(GXX_OPTIONS_DYLIB) -g -O4 -DNDEBUG -o $(OUTPUT_PATH) $(SRC_FILES)

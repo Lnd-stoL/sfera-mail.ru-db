@@ -50,10 +50,11 @@ namespace sfera_db
 //----------------------------------------------------------------------------------------------------------------------
 
     private:
-        db_data_storage *_fileStorage = nullptr;
+        db_data_storage *_dataStorage = nullptr;
+        uint64_t _currentOperationId = 1;
 
     private:
-        record_lookup_result _rKeyLookup(int pageId, int parentPageId, int parentRecordPos, data_blob key);
+        data_blob_copy _lookupByKey(data_blob key);
         void _rKeyInsertionLookup(int pageId, int parentPageId, const key_value &element);
         bool _rKeyErasingLookup(int pageId, int parentPageId, int parentRecordPos, const data_blob &element);
         void _tryInsertInPage(int pageId, int parentPageId, const key_value &element);
@@ -85,11 +86,12 @@ namespace sfera_db
         ~database();
 
         void insert(data_blob key, data_blob value);
-        data_blob get(data_blob key);
+        data_blob_copy get(data_blob key);
         void remove(data_blob key);
 
-        string dump() const;
+        string dumpTree() const;
         string dumpSortedKeys() const;
+        string dumpCacheStatistics() const;
     };
 
 }

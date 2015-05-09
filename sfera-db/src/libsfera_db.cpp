@@ -80,7 +80,7 @@ int db_select(database *db, void *key, size_t keyLength, void **pVal, size_t *pV
 		return -1;
 
 	try {
-		data_blob result = db->get(data_blob((uint8_t *)key, keyLength));
+		data_blob_copy result = db->get(data_blob((uint8_t *)key, keyLength));
 		if (!result.valid()) {
 			*pVal = nullptr;
 			*pValLength = 0;

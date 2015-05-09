@@ -29,6 +29,7 @@ int main (int argc, char** argv)
     database_config dbConfig;
     dbConfig.pageSizeBytes = 1024;
     dbConfig.maxDBSize = 32000000;
+    dbConfig.cacheSizePages = 1024;
 
     database *db = database::createEmpty("test_db", dbConfig);
 
@@ -40,35 +41,40 @@ int main (int argc, char** argv)
         std::cout << "INSERT " << testSet[i].first.toString() << " : " << testSet[i].second.toString() << std::endl;
         db->insert(testSet[i].first, testSet[i].second);
 
-        //std::cout << std::endl << db->dump() << std::endl;
+        //std::cout << std::endl << db->dumpTree() << std::endl;
     }
 
     // getting
     bool getOK = true;
     for (size_t i = 0; i < testSet.size(); ++i) {
         std::cout << "GET " << testSet[i].first.toString() << " : " << testSet[i].second.toString() << " = ";
-        data_blob result = db->get(testSet[i].first);
+        data_blob_copy result = db->get(testSet[i].first);
         std::cout << result.toString() << std::endl;
 
         if (result.toString() != testSet[i].second.toString()) {
             getOK = false;
             break;
         }
+
+        result.release();
     }
 
     std::cout << "GET TEST: " << getOK << std::endl;
-    std::cout << std::endl << db->dump() << std::endl;
+    std::cout << std::endl << db->dumpTree() << std::endl;
 
     // removing
     for (size_t i = 0; i < testSet.size(); ++i) {
         std::cout << "REMOVE " << testSet[i].first.toString() << " ";
         db->remove(testSet[i].first);
-        data_blob result = db->get(testSet[i].first);
+        data_blob_copy result = db->get(testSet[i].first);
 
         std::cout << (result.valid() ? "FAILED" : "OK") << std::endl;
+        result.release();
     }
 
-    std::cout << std::endl << db->dump() << std::endl;
+    std::cout << std::endl << db->dumpTree() << std::endl;
+
+    std::cout << std::endl << "=== cache statistics ===\n" << db->dumpCacheStatistics() << std::endl;
     delete db;
     return 0;
 }

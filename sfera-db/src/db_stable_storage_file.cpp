@@ -2,6 +2,7 @@
 #include "db_stable_storage_file.hpp"
 
 #include <cassert>
+#include <cstdlib>
 
 //----------------------------------------------------------------------------------------------------------------------
 
@@ -139,7 +140,6 @@ void db_stable_storage_file::writePage(db_page *page)
 
     page->prepareForWriting();
     _file->writeAll(_pageOffset(page->id()), page->bytes(), page->size());
-    page->wasSaved();
 }
 
 
@@ -152,7 +152,7 @@ db_page* db_stable_storage_file::allocatePage(bool isLeaf)
     }
 
     _updatePageMetaInfo(pageId, true);
-    _file->ensureSizeIsAtLeast(_pageOffset(pageId) + _pageSize);
+    //_file->ensureSizeIsAtLeast(_pageOffset(pageId) + _pageSize);
 
     uint8_t *rawPageBytes = (uint8_t *)::calloc(_pageSize, 1);
     db_page *page = db_page::createEmpty(pageId, data_blob(rawPageBytes, _pageSize), isLeaf);

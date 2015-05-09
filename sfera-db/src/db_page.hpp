@@ -35,10 +35,10 @@ namespace sfera_db
             data_blob operator*();
 
             int operator-(const key_iterator &rhs);
-            key_iterator operator+=(int offset);
+            key_iterator& operator+=(int offset);
 
             data_blob value() const;
-            int link() const;
+            int child() const;
 
             inline int            position()       const  { return _position; }
             inline const db_page *associatedPage() const  { return _page; }
@@ -65,7 +65,7 @@ namespace sfera_db
 
     private:
         static const int minimallyFullPercent = 47;
-        static const int maximallyFullPercent = 80;
+        static const int maximallyFullPercent = 70;
 
 
     private:
@@ -75,7 +75,9 @@ namespace sfera_db
         bool  _wasChanged = false;
 
         uint8_t  *_indexTable         = nullptr;
+        size_t    _recordIndexSize    = 0;
         size_t    _recordCount        = 0;
+        uint64_t  _lastModifiedOpId   = 0;
         off_t     _dataBlockEndOffset = 0;
         bool      _hasLinks           = false;
 
@@ -85,12 +87,20 @@ namespace sfera_db
             return *(uint16_t *)(_pageBytes + byteOffset);
         }
 
+        inline uint64_t  _pageBytesUint64(off_t byteOffset) const {
+            return *(uint64_t *)(_pageBytes + byteOffset);
+        }
+
         inline void _pageBytesUint16(off_t byteOffset, uint16_t val)  {
             *((uint16_t *)(_pageBytes + byteOffset)) = val;
         }
 
+        inline void _pageBytesUint64(off_t byteOffset, uint64_t val)  {
+            *((uint64_t *)(_pageBytes + byteOffset)) = val;
+        }
+
         inline size_t _recordIndexTableSize() const {
-            return (_hasLinks ? _recordCount+1 : _recordCount) * _recordIndexSize();
+            return (_hasLinks ? _recordCount+1 : _recordCount) * _recordIndexSize;
         }
 
         inline size_t _auxInfoSize() const {
@@ -101,12 +111,12 @@ namespace sfera_db
             return _dataBlockEndOffset - _auxInfoSize();
         }
 
-        inline size_t _recordIndexSize() const {
+        inline size_t _calcRecordIndexSize() const {
             return (_hasLinks ? 5 : 3) * sizeof(uint16_t);
         }
 
         inline uint16_t*_recordIndexRawPtr(int position) const {
-            return (uint16_t *)(_indexTable + position * _recordIndexSize());
+            return (uint16_t *)(_indexTable + position * _recordIndexSize);
         }
 
 
@@ -135,7 +145,7 @@ namespace sfera_db
         bool isMinimallyFilled() const;
         bool willRemainMinimallyFilledWithout(int position) const;
         size_t recordCount() const;
-        bool hasLinks() const;
+        bool hasChildren() const;
         bool possibleToInsert(key_value element);
 
         key_value recordAt(int position) const;
@@ -160,10 +170,11 @@ namespace sfera_db
         inline  size_t    size()       const  { return _pageSize; }
         inline  int       id()         const  { return _index; }
         inline  bool      wasChanged() const  { return _wasChanged; }
-        inline  uint8_t*  bytes()      const  { return _pageBytes; }
+        uint8_t*  bytes() const;
         inline  int       lastRightChild()   const  { return this->childAt((int) _recordCount); }
+        inline  uint64_t  lastModifiedOpId() const  { return _lastModifiedOpId; }
 
-        inline void wasSaved()  { _wasChanged = false; }
+        void wasSaved(uint64_t opId);
     };
 
 }

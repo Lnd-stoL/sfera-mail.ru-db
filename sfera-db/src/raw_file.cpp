@@ -6,6 +6,8 @@
 
 #include <fcntl.h>
 #include <sys/stat.h>
+#include <sys/uio.h>
+#include <cassert>
 
 //----------------------------------------------------------------------------------------------------------------------
 
@@ -104,4 +106,40 @@ off_t raw_file::readAll(off_t offset, void *data, size_t length) const
     }
 
     return offset + length;
+}
+
+
+void raw_file::appedAll(const void *data, size_t length)
+{
+    for (size_t writtenBytes = 0; writtenBytes < length;) {
+        ssize_t writeResult = ::write(_unixFD, (uint8_t *)data + writtenBytes,
+                                      length - writtenBytes);
+        syscall_check( writeResult );
+        writtenBytes += writeResult;
+    }
+}
+
+
+void raw_file::appedAll(std::pair<void const *, size_t> buffers[], size_t buffersCount)
+{
+    assert( buffersCount <= ::sysconf(_SC_IOV_MAX) );
+
+    struct iovec iovs[buffersCount];
+    size_t summLen = 0;
+    for (size_t i = 0; i < buffersCount; ++i) {
+        iovs[i].iov_base = const_cast<void*> (buffers[i].first);
+        iovs[i].iov_len  = buffers[i].second;
+
+        summLen += buffers[i].second;
+    }
+
+    int writtenBuffs = 0;
+    for (size_t writtenBytes = 0; writtenBytes < summLen;) {
+        ssize_t writeResult = ::writev(_unixFD, &iovs[0], buffersCount);
+        syscall_check( writeResult );
+
+        assert( writeResult == summLen ); // TODO: not implemented correctly
+
+        writtenBytes += writeResult;
+    }
 }

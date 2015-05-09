@@ -6,6 +6,7 @@
 
 #include "pages_cache.hpp"
 #include "db_stable_storage_file.hpp"
+#include "db_binlog.hpp"
 
 //----------------------------------------------------------------------------------------------------------------------
 
@@ -28,11 +29,13 @@ namespace sfera_db
     private:
         pages_cache *_pagesCache = nullptr;
         db_stable_storage_file *_stableStorageFile = nullptr;
+        db_binlog *_binlog = nullptr;
+
+        db_operation *_currentOperation = nullptr;
 
 
     private:
         void _initializeCache(size_t sizeInPages);
-        void  _realWritePage(db_page *page);
 
     private:
         db_data_storage() { }
@@ -53,8 +56,13 @@ namespace sfera_db
         void deallocatePage(int pageId);
         void deallocateAndRelease(db_page *page);
 
+        void onOperationStart(db_operation *op);
+        void onOperationEnd();
+
         void changeRootPage(int pageId);
         inline int rootPageId() const  { return _stableStorageFile->rootPageId(); }
+
+        inline const pages_cache& pagesCache() const  { return *_pagesCache; }
     };
 
 }
