@@ -7,7 +7,6 @@ using namespace sfera_db;
 
 //----------------------------------------------------------------------------------------------------------------------
 
-
 void db_operation::writesPage(db_page *page)
 {
     _pagesWriteSet[page->id()] = page;

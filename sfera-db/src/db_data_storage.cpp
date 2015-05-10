@@ -12,12 +12,24 @@ using namespace sfera_db;
 
 //----------------------------------------------------------------------------------------------------------------------
 
+const std::string db_data_storage::StableStorageFileName = "data.sdbs";
+const std::string db_data_storage::LogFileName           = "log.sdbl";
+
+//----------------------------------------------------------------------------------------------------------------------
+
 auto db_data_storage::openExisting(const std::string &dirPath, const db_data_storage_open_params &params)
 -> db_data_storage *
 {
     auto dbDataStorage = new db_data_storage();
-    dbDataStorage->_stableStorageFile = db_stable_storage_file::openExisting(dirPath + "/" +
-                                                                                     dbDataStorage->StableStorageFileName);
+    dbDataStorage->_stableStorageFile = db_stable_storage_file::openExisting(dirPath + "/" + StableStorageFileName);
+
+    db_binlog_recovery *binlog_recovery = new db_binlog_recovery(dirPath + "/" + dbDataStorage->LogFileName);
+    if (!binlog_recovery->closedProperly()) {
+        std::cerr << "warning: database wasn't closed peoperly last time -> applying recovery ..." << std::endl;
+        binlog_recovery->doRecovery(dbDataStorage);
+    }
+    delete binlog_recovery;
+
     dbDataStorage->_initializeCache(params.cacheSizeInPages);
     dbDataStorage->_binlog = db_binlog_logger::openExisting(dirPath + "/" + dbDataStorage->LogFileName);
 
@@ -145,4 +157,10 @@ void db_data_storage::onOperationEnd()
     }
 
     _currentOperation = nullptr;
+}
+
+
+bool db_data_storage::exists(const std::string &path)
+{
+    return raw_file::exists(path + "/" + StableStorageFileName);
 }

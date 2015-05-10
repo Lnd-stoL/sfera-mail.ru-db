@@ -44,6 +44,7 @@ auto database::openExisting(const std::string &path) -> database *
 {
     database *db = new database();
     db->_dataStorage = db_data_storage::openExisting(path);
+
     return db;
 }
 
@@ -580,4 +581,10 @@ string database::dumpCacheStatistics() const
     str << "failed evictions: " << cacheStatistics.failedEvictions << std::endl;
 
     return str.str();
+}
+
+
+bool database::exists(const std::string &path)
+{
+    return db_data_storage::exists(path);
 }

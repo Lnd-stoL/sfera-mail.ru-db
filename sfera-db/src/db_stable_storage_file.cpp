@@ -71,6 +71,7 @@ void db_stable_storage_file::_load()
     offset = _file->readAll(offset, &_pageSize, sizeof(_pageSize));
 
     offset = _file->readAll(offset, &_maxPageCount, sizeof(_maxPageCount));
+    _lastFreePage_InfileOffset = offset;
     offset = _file->readAll(offset, &_lastFreePage, sizeof(_lastFreePage));
     offset = _file->readAll(offset, &_rootPageId,   sizeof(_rootPageId));
 

@@ -60,8 +60,6 @@ namespace sfera_db
 
     class db_binlog_logger
     {
-    public:
-
     private:
         raw_file *_file = nullptr;
         uint64_t  _currentLSN = 0;
@@ -78,8 +76,33 @@ namespace sfera_db
         static db_binlog_logger *openExisting(const std::string& path);
 
         void logOperation(db_operation *operation);
+        void logCheckpoint();
     };
 
+    //----------------------------------------------------------------------------------------------------------------------
+
+    class db_data_storage;
+
+    //----------------------------------------------------------------------------------------------------------------------
+
+    class db_binlog_recovery
+    {
+    private:
+        raw_file *_file = nullptr;
+        bool _closedProperly = false;
+
+
+    protected:
+        void _findBackCheckpoint();
+
+    public:
+        db_binlog_recovery(const std::string &path);
+
+        void doRecovery(db_data_storage *dbData);
+
+        inline bool valid() const  { return _file != nullptr; }
+        inline bool closedProperly() const  { return _closedProperly; }
+    };
 }
 
 //----------------------------------------------------------------------------------------------------------------------

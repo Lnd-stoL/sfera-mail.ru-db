@@ -83,6 +83,7 @@ namespace sfera_db
     public:
         static database* createEmpty(const std::string &path, const database_config &config);
         static database* openExisting(const std::string &path);
+        static bool exists(const std::string &path);
         ~database();
 
         void insert(data_blob key, data_blob value);

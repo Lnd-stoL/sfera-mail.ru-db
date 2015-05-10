@@ -22,8 +22,8 @@ namespace sfera_db
     class db_data_storage
     {
     private:
-        const std::string StableStorageFileName = "data.sdbs";
-        const std::string LogFileName           = "log.sdbl";
+        static const std::string StableStorageFileName;
+        static const std::string LogFileName;
 
 
     private:
@@ -45,6 +45,7 @@ namespace sfera_db
         static db_data_storage * openExisting(std::string const &dirPath,
                                               const db_data_storage_open_params &params = db_data_storage_open_params());
         static db_data_storage * createEmpty(std::string const &dirPath, db_data_storage_config const &config);
+        static bool exists(const std::string &path);
 
         db_page* fetchPage(int pageId);
         db_page* allocatePage(bool isLeaf);

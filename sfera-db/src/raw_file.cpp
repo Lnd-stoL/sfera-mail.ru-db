@@ -71,7 +71,7 @@ raw_file *raw_file::openExisting(const std::string &path, bool readOnly)
 
 bool raw_file::exists(const std::string &path)
 {
-    return false;
+    return ::access(path.c_str(), F_OK) != -1;
 }
 
 
@@ -102,6 +102,10 @@ off_t raw_file::readAll(off_t offset, void *data, size_t length) const
     for (size_t readBytes = 0; readBytes < length;) {
         ssize_t readResult = ::pread(_unixFD, (uint8_t *)data + readBytes, length - readBytes, offset + readBytes);
         syscall_check( readResult );
+        if (readResult == 0) {
+            _eof = true;
+            return offset + length;
+        }
         readBytes += readResult;
     }
 
@@ -142,4 +146,24 @@ void raw_file::appedAll(std::pair<void const *, size_t> buffers[], size_t buffer
 
         writtenBytes += writeResult;
     }
+}
+
+
+void raw_file::readAll(void *data, size_t length)
+{
+    for (size_t readBytes = 0; readBytes < length;) {
+        ssize_t readResult = ::read(_unixFD, (uint8_t *)data + readBytes, length - readBytes);
+        syscall_check( readResult );
+        if (readResult == 0) {
+            _eof = true;
+            return;
+        }
+        readBytes += readResult;
+    }
+}
+
+
+bool raw_file::eof()
+{
+    return _eof;
 }
