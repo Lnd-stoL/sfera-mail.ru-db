@@ -86,6 +86,8 @@ void raw_file::ensureSizeIsAtLeast(size_t neededSize)
 
 off_t raw_file::writeAll(off_t offset, const void *data, size_t length)
 {
+    _eof = false;
+
     for (size_t writtenBytes = 0; writtenBytes < length;) {
         ssize_t writeResult = ::pwrite(_unixFD, (uint8_t *)data + writtenBytes,
                                        length - writtenBytes, offset + writtenBytes);
@@ -115,6 +117,8 @@ off_t raw_file::readAll(off_t offset, void *data, size_t length) const
 
 void raw_file::appedAll(const void *data, size_t length)
 {
+    _eof = false;
+
     for (size_t writtenBytes = 0; writtenBytes < length;) {
         ssize_t writeResult = ::write(_unixFD, (uint8_t *)data + writtenBytes,
                                       length - writtenBytes);
@@ -127,6 +131,7 @@ void raw_file::appedAll(const void *data, size_t length)
 void raw_file::appedAll(std::pair<void const *, size_t> buffers[], size_t buffersCount)
 {
     assert( buffersCount <= ::sysconf(_SC_IOV_MAX) );
+    _eof = false;
 
     struct iovec iovs[buffersCount];
     size_t summLen = 0;

@@ -133,9 +133,9 @@ void pages_cache::_evict()
         return;
     }
 
+    _writeAndDestroyPage(pageInfo);
     _lruQueue.pop_front();
     _cachedPages.erase(pageIt);
-    _writeAndDestroyPage(pageInfo);
 }
 
 

@@ -55,10 +55,10 @@ int main (int argc, char** argv)
     database_config dbConfig;
     dbConfig.pageSizeBytes = 1024;
     dbConfig.maxDBSize = 32000000;
-    dbConfig.cacheSizePages = 1024;
+    dbConfig.cacheSizePages = 32;
 
     std::vector<std::pair<data_blob, data_blob>> testSet;
-    fillTestSet(testSet, 200);
+    fillTestSet(testSet, 2000);
 
     if (database::exists("test_db")) {
         testOpening(testSet);
@@ -108,6 +108,6 @@ int main (int argc, char** argv)
 */
 
     std::cout << std::endl << "=== cache statistics ===\n" << db->dumpCacheStatistics() << std::endl;
-    delete db;
+    //delete db;
     return 0;
 }

@@ -14,7 +14,7 @@ auto db_stable_storage_file::openExisting(const std::string &fileName) -> db_sta
 {
     auto dbFile = new db_stable_storage_file();
 
-    dbFile->_file = raw_file::openExisting(fileName);
+    dbFile->_file = raw_file::openExisting(fileName, false);
     dbFile->_load();
     return dbFile;
 }
@@ -177,6 +177,12 @@ db_page* db_stable_storage_file::loadPage(int pageId)
 
     uint8_t *rawPageBytes = (uint8_t *)::malloc(_pageSize);
     _file->readAll(_pageOffset(pageId), rawPageBytes, _pageSize);
+
+    if (_file->eof()) {
+        ::free(rawPageBytes);
+        return nullptr;
+    }
+
     return db_page::load(pageId, data_blob(rawPageBytes, _pageSize));
 }
 

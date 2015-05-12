@@ -6,6 +6,7 @@
 
 #include "raw_file.hpp"
 #include "db_operation.h"
+#include "db_stable_storage_file.hpp"
 
 //----------------------------------------------------------------------------------------------------------------------
 
@@ -19,10 +20,10 @@ namespace sfera_db
 
     protected:
         type_t _type   = UNKNOWN;
-        size_t _length = 0;
+        uint32_t _length = 0;
         uint64_t _lsn  = 0;
 
-        const uint64_t _magic = 0x109be912219eb901;
+        const uint32_t _magic = 0x109be912;
         const size_t _headerSize = sizeof(_magic) + sizeof(_length) + sizeof(_lsn) + sizeof(_type);
 
 
@@ -30,9 +31,13 @@ namespace sfera_db
         void _fillHeader(uint8_t *header);
         void _unpackHeader(uint8_t *header);
 
+        static inline off_t _typeOffset()  { return sizeof(_magic) + sizeof(_length) + sizeof(_lsn); }
+
     public:
         binlog_record(type_t t, uint64_t lsn);
         binlog_record() { };
+
+        static type_t fetchType(raw_file *file);
 
         virtual void writeTo(raw_file *file);
         virtual bool readFrom(raw_file *file);
@@ -50,6 +55,7 @@ namespace sfera_db
         db_operation *_operation;
 
     public:
+        binlog_operation_record(db_operation *operation) : _operation(operation) { };
         binlog_operation_record(type_t t, uint64_t lsn, db_operation *op);
 
         virtual void writeTo(raw_file *file);
@@ -97,8 +103,9 @@ namespace sfera_db
 
     public:
         db_binlog_recovery(const std::string &path);
+        ~db_binlog_recovery();
 
-        void doRecovery(db_data_storage *dbData);
+        void doRecovery(db_stable_storage_file *stableStorage);
 
         inline bool valid() const  { return _file != nullptr; }
         inline bool closedProperly() const  { return _closedProperly; }
