@@ -293,15 +293,27 @@ db_page::~db_page()
 }
 
 
-void db_page::insert(db_page::key_iterator position, key_value data, int linked)
+void db_page::insert(db_page::key_iterator position, key_value data, int childId)
 {
+// this is useful to test page llocation related bugs
+/*
+    for (int i = 0; i < _recordCount; ++i)
+        if (_hasLinks && childAt(i) == childId) assert(0);
+*/
+
     assert( position.associatedPage() == this );
-    insert(position.position(), data, linked);
+    insert(position.position(), data, childId);
 }
 
 
 void db_page::reconnect(int position, int childId)
 {
+// this is useful to test page llocation related bugs
+/*
+    for (int i = 0; i < _recordCount; ++i)
+        if (_hasLinks && childAt(i) == childId) assert(0);
+*/
+
     assert( _pageBytes != nullptr );
     assert( _hasLinks );
     assert( position >= 0 && position <= _recordCount );
@@ -494,4 +506,6 @@ uint8_t *db_page::bytes() const
 {
     assert( _pageBytes != nullptr );
     return _pageBytes;
+}
+
 }

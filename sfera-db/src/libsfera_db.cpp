@@ -52,7 +52,7 @@ extern "C"
 int db_close(database *db)
 {
 	try {
-		//std::cout << db->dump() << std::endl;
+		//std::cout << db->dumpTree() << std::endl;
 		delete db;
 		return 0;
 	}

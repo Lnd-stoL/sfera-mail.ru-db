@@ -3,5 +3,5 @@ get: 40
 put: 40
 del: 20
 distrib: 'latest'
-ops: 25000
+ops: 5000
 ...

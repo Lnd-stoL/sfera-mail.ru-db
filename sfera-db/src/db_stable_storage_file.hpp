@@ -24,7 +24,7 @@ namespace sfera_db
 
         size_t _pageSize          = 0;
         size_t _maxPageCount      = 0;
-        int    _lastFreePage      = -1;
+        int    _nextFreePage = 0;
         off_t  _pagesStartOffset  = 0;
 
         size_t _pagesMetaTableSize = 0;

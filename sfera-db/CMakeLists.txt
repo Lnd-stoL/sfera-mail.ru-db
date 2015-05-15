@@ -20,6 +20,10 @@ set(SOURCE_FILES
     src/db_stable_storage_file.cpp
     src/db_stable_storage_file.hpp
     src/db_data_storage_config.hpp
+    src/db_binlog_logger.cpp
+    src/db_binlog_logger.hpp
+    src/db_operation.cpp
+    src/db_operation.h
     )
 
-add_executable(sfera-db ${SOURCE_FILES} src/db_binlog_logger.cpp src/db_binlog_logger.hpp src/db_operation.cpp src/db_operation.h)
+add_executable(sfera-db ${SOURCE_FILES})

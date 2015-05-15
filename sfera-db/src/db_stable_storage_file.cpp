@@ -3,6 +3,8 @@
 
 #include <cassert>
 #include <cstdlib>
+#include <exception>
+#include <stdexcept>
 
 //----------------------------------------------------------------------------------------------------------------------
 
@@ -34,7 +36,7 @@ auto db_stable_storage_file::createEmpty(const std::string &fileName, db_data_st
 
 db_stable_storage_file::~db_stable_storage_file()
 {
-    _file->writeAll(_lastFreePage_InfileOffset, &_lastFreePage, sizeof(_lastFreePage));
+    _file->writeAll(_lastFreePage_InfileOffset, &_nextFreePage, sizeof(_nextFreePage));
 
     if (_pagesMetaTable) {
         ::free(_pagesMetaTable);
@@ -53,7 +55,7 @@ void db_stable_storage_file::_initializeEmpty(size_t maxStorageSize)
 
     offset = _file->writeAll(offset, &_maxPageCount, sizeof(_maxPageCount));
     _lastFreePage_InfileOffset = offset;
-    offset = _file->writeAll(offset, &_lastFreePage, sizeof(_lastFreePage));
+    offset = _file->writeAll(offset, &_nextFreePage, sizeof(_nextFreePage));
     _rootPageId_InfileOffset = offset;
     offset += sizeof(int); // root page id placeholder
 
@@ -72,7 +74,8 @@ void db_stable_storage_file::_load()
 
     offset = _file->readAll(offset, &_maxPageCount, sizeof(_maxPageCount));
     _lastFreePage_InfileOffset = offset;
-    offset = _file->readAll(offset, &_lastFreePage, sizeof(_lastFreePage));
+    offset = _file->readAll(offset, &_nextFreePage, sizeof(_nextFreePage));
+    _nextFreePage = 0; // todo: according to new ideas in pages allocation this can't be permanently stored
     offset = _file->readAll(offset, &_rootPageId,   sizeof(_rootPageId));
 
     _pagesMetaTableStartOffset = offset;
@@ -92,24 +95,41 @@ void db_stable_storage_file::_initPagesMetaTableByteSize()
 
 int db_stable_storage_file::_getNextFreePageIndex()
 {
-    int pageIndex = _lastFreePage + 1;
+    int pageIndex = _nextFreePage;
 
     unsigned currentByteOffset = (unsigned) (pageIndex / 8);
-    unsigned char currentInByteOffset = (unsigned char) ( pageIndex % 8 );
+    uint8_t currentInByteOffset = (uint8_t) ( pageIndex % 8 );
 
-    while (_pagesMetaTable[currentByteOffset] == 0xFF) {
-        ++currentByteOffset;
+    while (true) {
+        if (_pagesMetaTableSize > sizeof(uint64_t)) {
+            unsigned currentLongOffset = (unsigned) (pageIndex / 64);
+            while (*((uint64_t *)_pagesMetaTable + currentLongOffset) == 0xFFFFFFFFFFFFFFFF
+                   && currentByteOffset < _pagesMetaTableSize/sizeof(uint64_t)) {
+                ++currentLongOffset;
+                currentInByteOffset = 0;
+                pageIndex = currentLongOffset * 8 * (int)sizeof(uint64_t);
+            }
+        }
+
+        while (_pagesMetaTable[currentByteOffset] == 0xFF && currentByteOffset < _pagesMetaTableSize) {
+            ++currentByteOffset;
+            currentInByteOffset = 0;
+            pageIndex = currentByteOffset * 8;
+        }
+        if (currentByteOffset >= _pagesMetaTableSize) {
+            throw std::runtime_error("page allocation failed: no more free space");
+        }
+
+        uint8_t currentByte = _pagesMetaTable[currentByteOffset];
+        unsigned i = currentInByteOffset;
+        for (; i < 8; ++i) {
+            if ((currentByte  & (1 << i)) == 0)  return pageIndex;
+            ++pageIndex;
+        }
+
         currentInByteOffset = 0;
-        pageIndex = currentByteOffset * 8;
+        ++currentByteOffset;
     }
-
-    unsigned char currentByte = _pagesMetaTable[currentByteOffset];
-    for (unsigned i = currentInByteOffset; i < 8; ++i) {
-        if ((currentByte  & (1 << i)) == 0)  break;
-        ++pageIndex;
-    }
-
-    return pageIndex;
 }
 
 
@@ -147,10 +167,7 @@ void db_stable_storage_file::writePage(db_page *page)
 db_page* db_stable_storage_file::allocatePage(bool isLeaf)
 {
     int pageId = _getNextFreePageIndex();
-
-    if (_lastFreePage + 1 == pageId)  {
-        _lastFreePage = pageId;
-    }
+    _nextFreePage = pageId + 1;
 
     _updatePageMetaInfo(pageId, true);
     //_file->ensureSizeIsAtLeast(_pageOffset(pageId) + _pageSize);
@@ -166,7 +183,7 @@ void db_stable_storage_file::deallocatePage(int pageId)
 {
     assert( pageId >= 0 && pageId < _maxPageCount );
 
-    _lastFreePage = pageId - 1;
+    _nextFreePage = pageId;
     _updatePageMetaInfo(pageId, false);
 }
 

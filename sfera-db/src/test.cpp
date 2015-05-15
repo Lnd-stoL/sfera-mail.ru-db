@@ -14,7 +14,7 @@ void fillTestSet(std::vector<std::pair<data_blob, data_blob>> &testSet, size_t c
 
     for (size_t i = 0; i < count; ++i) {
 
-        auto skey   = std::string("test key ololo ") + std::string(i%20, '0') + std::to_string(i);
+        auto skey   = std::to_string(i) + std::string("test key") + std::string(i%20, '0') + std::to_string(i);
         auto svalue = std::string("value QWERTY test") + std::to_string(i);
 
         testSet[i] = std::make_pair(data_blob::fromCopyOf(skey), data_blob::fromCopyOf(svalue));
@@ -54,46 +54,51 @@ int main (int argc, char** argv)
 {
     database_config dbConfig;
     dbConfig.pageSizeBytes = 1024;
-    dbConfig.maxDBSize = 32000000;
+    dbConfig.maxDBSize = 100000*1024;
     dbConfig.cacheSizePages = 32;
 
     std::vector<std::pair<data_blob, data_blob>> testSet;
-    fillTestSet(testSet, 2000);
+    fillTestSet(testSet, 10000);
 
     if (database::exists("test_db")) {
-        testOpening(testSet);
-        return 0;
+        //testOpening(testSet);
+        //return 0;
     }
 
     database *db = database::createEmpty("test_db", dbConfig);
 
-    // insertion
-    for (size_t i = 0; i < testSet.size(); ++i) {
-        std::cout << "INSERT " << testSet[i].first.toString() << " : " << testSet[i].second.toString() << std::endl;
-        db->insert(testSet[i].first, testSet[i].second);
+    for (int j = 0; j < 5; ++j) {
 
-        //std::cout << std::endl << db->dumpTree() << std::endl;
-    }
+        // insertion
+        for (size_t i = 0; i < testSet.size(); ++i) {
+            std::cout << "INSERT " << testSet[i].first.toString() << " : " << testSet[i].second.toString() << std::endl;
+            db->insert(testSet[i].first, testSet[i].second);
 
-    // getting
-    bool getOK = true;
-    for (size_t i = 0; i < testSet.size(); ++i) {
-        std::cout << "GET " << testSet[i].first.toString() << " : " << testSet[i].second.toString() << " = ";
-        data_blob_copy result = db->get(testSet[i].first);
-        std::cout << result.toString() << std::endl;
-
-        if (result.toString() != testSet[i].second.toString()) {
-            getOK = false;
-            break;
+            //std::cout << std::endl << db->dumpTree() << std::endl;
         }
 
-        result.release();
-    }
+        std::random_shuffle(testSet.begin(), testSet.end());
 
-    std::cout << "GET TEST: " << getOK << std::endl;
-    std::cout << std::endl << db->dumpTree() << std::endl;
+        // getting
+        bool getOK = true;
+        for (size_t i = 0; i < testSet.size(); ++i) {
+            std::cout << "GET " << testSet[i].first.toString() << " : " << testSet[i].second.toString() << " = ";
+            data_blob_copy result = db->get(testSet[i].first);
+            std::cout << result.toString() << std::endl;
 
-/*
+            if (result.toString() != testSet[i].second.toString()) {
+                getOK = false;
+                break;
+            }
+
+            result.release();
+        }
+
+        std::cout << "GET TEST: " << getOK << std::endl;
+        //std::cout << std::endl << db->dumpTree() << std::endl;
+
+        std::random_shuffle(testSet.begin(), testSet.end());
+
     // removing
     for (size_t i = 0; i < testSet.size(); ++i) {
         std::cout << "REMOVE " << testSet[i].first.toString() << " ";
@@ -105,7 +110,9 @@ int main (int argc, char** argv)
     }
 
     std::cout << std::endl << db->dumpTree() << std::endl;
-*/
+
+
+    }
 
     std::cout << std::endl << "=== cache statistics ===\n" << db->dumpCacheStatistics() << std::endl;
     //delete db;

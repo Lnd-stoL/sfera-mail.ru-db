@@ -8,6 +8,7 @@
 #include <sstream>
 
 #include <sys/stat.h>
+#include <iostream>
 
 //----------------------------------------------------------------------------------------------------------------------
 
@@ -256,6 +257,8 @@ bool database::_makePageMinimallyFilled(db_page *page, int parentPageId, int par
 void database::_mergePages(db_page *page, int parentRecordPos, db_page *parentPage, db_page *rightNextPage,
                            db_page *leftPrevPage)
 {
+    assert( page != rightNextPage && page != leftPrevPage );   // avoid self merging
+
     size_t basicResultSize = page->usedBytes() + parentPage->usedBytesFor(parentRecordPos);
 
     if (rightNextPage != nullptr && rightNextPage->usedBytes() + basicResultSize < page->size()) {
@@ -266,10 +269,11 @@ void database::_mergePages(db_page *page, int parentRecordPos, db_page *parentPa
         for (int i = 0; i < rightNextPage->recordCount(); ++i) {
             page->append(rightNextPage->recordAt(i), page->hasChildren() ? rightNextPage->childAt(i) : -1);
         }
-        parentPage->reconnect(parentRecordPos + 1, page->id());
+
+        parentPage->remove(parentRecordPos);
+        parentPage->reconnect(parentRecordPos, page->id());
         if (page->hasChildren()) page->reconnect((int) page->recordCount(), rightNextPage->lastRightChild());
         _dataStorage->deallocatePage(rightNextPage->id());
-        parentPage->remove(parentRecordPos);
 
     } else if (leftPrevPage->usedBytes() + basicResultSize < page->size()) {
 
@@ -282,6 +286,8 @@ void database::_mergePages(db_page *page, int parentRecordPos, db_page *parentPa
         }
         _dataStorage->deallocatePage(leftPrevPage->id());
         parentPage->remove(parentRecordPos-1);
+    } else {
+        assert(0); // todo handle this situation properly (can't merge pages though they are both not minimally filled)
     }
 }
 
@@ -366,6 +372,8 @@ db_page* database::_findPageNeighbours(const record_internal_id &parentRecord, i
         leftPrevPageId = parentPage->childAt(parentRecord.inPagePosition - 1);
     }
 
+
+    assert( rightNextPageId != leftPrevPageId  );
     return parentPage;
 }
 

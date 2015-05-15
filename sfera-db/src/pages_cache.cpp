@@ -60,9 +60,9 @@ void pages_cache::invalidateCachedPage(int pageId)
 {
     cached_page_info &pageInfo = _cachedPages[pageId];
     _lruQueue.erase(pageInfo.lruQueueIterator);
-    _cachedPages.erase(pageInfo.page->id());
 
     _writeAndDestroyPage(pageInfo);
+    _cachedPages.erase(pageId);
 }
 
 
