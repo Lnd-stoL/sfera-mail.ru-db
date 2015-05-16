@@ -23,8 +23,8 @@ void binlog_record::_fillHeader(uint8_t *header)
 {
     uint8_t *headerWriter = header;
 
-    *(uint32_t *) headerWriter = _magic;
-    headerWriter += sizeof(_magic);
+    *(uint32_t *) headerWriter = magicHeader;
+    headerWriter += sizeof(magicHeader);
     *(uint32_t *) headerWriter = _length;
     headerWriter += sizeof(_length);
     *(uint64_t *) headerWriter = _lsn;
@@ -41,8 +41,8 @@ void binlog_record::_unpackHeader(uint8_t *header)
     uint8_t *headerReader = header;
 
     uint32_t magic = *(uint32_t *) headerReader;
-    headerReader += sizeof(_magic);
-    if (magic != _magic) {
+    headerReader += sizeof(magicHeader);
+    if (magic != magicHeader) {
         _type = UNKNOWN;
         return;
     }
@@ -83,7 +83,7 @@ bool binlog_record::readFrom(raw_file *file)
         return false;
     }
 
-    ::lseek(file->uinxFD(), sizeof(_length), SEEK_CUR);  // this is to read the whole record
+    ::lseek(file->unixFD(), sizeof(_length), SEEK_CUR);  // this is to read the whole record
     return true;
 }
 
@@ -91,10 +91,10 @@ bool binlog_record::readFrom(raw_file *file)
 binlog_record::type_t
 binlog_record::fetchType(raw_file *file)
 {
-    ::lseek(file->uinxFD(), _typeOffset(), SEEK_CUR);
+    ::lseek(file->unixFD(), _typeOffset(), SEEK_CUR);
     type_t recType;
     file->readAll(&recType, sizeof(recType));
-    ::lseek(file->uinxFD(), -_typeOffset() - sizeof(recType), SEEK_CUR);
+    ::lseek(file->unixFD(), -_typeOffset() - sizeof(recType), SEEK_CUR);
 
     return recType;
 }
@@ -142,7 +142,7 @@ void binlog_operation_record::writeTo(raw_file *file)
 bool binlog_operation_record::readFrom(raw_file *file)
 {
     if (!binlog_record::readFrom(file)) return false;
-    ::lseek(file->uinxFD(), -sizeof(_length), SEEK_CUR);  // this is to undo last length skipping
+    ::lseek(file->unixFD(), -sizeof(_length), SEEK_CUR);  // this is to undo last length skipping
 
     uint32_t pageCount = 0;
     file->readAll(&pageCount, sizeof(pageCount));
@@ -161,7 +161,7 @@ bool binlog_operation_record::readFrom(raw_file *file)
         _operation->writesPage(nextPage);
     }
 
-    ::lseek(file->uinxFD(), sizeof(_length), SEEK_CUR);  // skip the length finally
+    ::lseek(file->unixFD(), sizeof(_length), SEEK_CUR);  // skip the length finally
     return true;
 }
 
@@ -177,10 +177,17 @@ db_binlog_logger *db_binlog_logger::createEmpty(const std::string &path)
 }
 
 
-db_binlog_logger *db_binlog_logger::openExisting(const std::string &path)
+db_binlog_logger *db_binlog_logger::openExisting(const std::string &path, const db_binlog_recovery& recoveryTool)
 {
     db_binlog_logger *binlog = new db_binlog_logger();
     binlog->_file = raw_file::openExisting(path);
+
+    if (!recoveryTool.closedProperly()) {
+        throw std::runtime_error("can't open binlog before it is repaired");
+    }
+
+    binlog->_currentLSN = recoveryTool.lastLsn() + 1;
+    binlog->logCheckpoint();
 
     return binlog;
 }
@@ -223,10 +230,10 @@ db_binlog_recovery::db_binlog_recovery(const std::string &path)
     }
 
     _file = raw_file::openExisting(path, true);
-    ::lseek(_file->uinxFD(), -sizeof(uint32_t), SEEK_END);
+    ::lseek(_file->unixFD(), -sizeof(uint32_t), SEEK_END);
     uint32_t lastMsgLen = 0;
     _file->readAll(&lastMsgLen, sizeof(lastMsgLen));
-    ::lseek(_file->uinxFD(), -((off_t) lastMsgLen), SEEK_CUR);
+    ::lseek(_file->unixFD(), -((off_t) lastMsgLen), SEEK_CUR);
 
     binlog_record lastRecord;
     if (!lastRecord.readFrom(_file)) {
@@ -235,15 +242,14 @@ db_binlog_recovery::db_binlog_recovery(const std::string &path)
 
     if (lastRecord.type() == binlog_record::LOG_CLOSED) {
         _closedProperly = true;
+        _lastLsn = lastRecord.lsn();
     }
 }
 
 
 db_binlog_recovery::~db_binlog_recovery()
 {
-    if (_file != nullptr) {
-        delete _file;
-    }
+    releaseLog();
 }
 
 
@@ -274,27 +280,33 @@ void db_binlog_recovery::doRecovery(db_stable_storage_file *stableStorage)
                 " to " << nextPage->lastModifiedOpId() << std::endl;
 
                 stableStorage->writePage(nextPage);  // replace the page in stable storage
+                _lastOpId = std::max(_lastOpId, nextPage->lastModifiedOpId());
             }
 
             delete nextPage;
             delete stablePageVersion;
         }
+
+        _lastLsn = nextOperationRec.lsn();
     }
+
+    _closedProperly = true;
 }
 
 
 void db_binlog_recovery::_findBackCheckpoint()
 {
-    ::lseek(_file->uinxFD(), 0, SEEK_END);
+    ::lseek(_file->unixFD(), 0, SEEK_END);
 
-    while (::lseek(_file->uinxFD(), -sizeof(uint32_t), SEEK_CUR) != -1) {
+    while (::lseek(_file->unixFD(), -sizeof(uint32_t), SEEK_CUR) != -1) {
         uint32_t msgLen = 0;
         _file->readAll(&msgLen, sizeof(msgLen));
-        off_t msgBegin = ::lseek(_file->uinxFD(), -(off_t) msgLen, SEEK_CUR);
+        off_t msgBegin = ::lseek(_file->unixFD(), -(off_t) msgLen, SEEK_CUR);
 
         binlog_record record;
         if (!record.readFrom(_file)) {
-            assert(0); // TODO: handle invalid log format
+            _findBackLastValidRecord();      // in case if last log message was damaged
+            record.readFrom(_file);
             return;
         }
 
@@ -302,7 +314,47 @@ void db_binlog_recovery::_findBackCheckpoint()
             break;
         }
 
-        ::lseek(_file->uinxFD(), msgBegin, SEEK_SET);
+        ::lseek(_file->unixFD(), msgBegin, SEEK_SET);
+    }
+}
+
+
+void db_binlog_recovery::_findBackLastValidRecord()
+{
+    const size_t readBufferSize = 512 * sizeof(uint32_t);
+    off_t currentPos = ::lseek(_file->unixFD(), 0, SEEK_END);
+
+    while ((currentPos = ::lseek(_file->unixFD(), -readBufferSize, SEEK_CUR)) >= 0) {
+        uint8_t readBuffer[readBufferSize];
+        _file->readAll(readBuffer, readBufferSize);
+
+        uint32_t *readBufferPtr = (uint32_t *)readBuffer + (readBufferSize/sizeof(uint32_t)) - 1;
+        while (readBufferPtr >= (uint32_t *)readBuffer) {
+            for (; *readBufferPtr != binlog_record::magicHeader && readBufferPtr >= (uint32_t *)readBuffer; --readBufferPtr);
+
+            if (*readBufferPtr == binlog_record::magicHeader) {
+                uint32_t msgLength = 0;
+                off_t currentMagicPos = currentPos + (uint8_t *)readBufferPtr - readBuffer;
+                _file->readAll(currentMagicPos + sizeof(binlog_record::magicHeader), &msgLength, sizeof(msgLength));
+                //todo: test EOF
+
+                uint32_t doubleCheckLen = 0;
+                _file->readAll(currentPos + msgLength - sizeof(msgLength), &doubleCheckLen, sizeof(doubleCheckLen));
+                if (doubleCheckLen == msgLength) {
+                    ::lseek(_file->unixFD(), currentMagicPos, SEEK_SET);
+                    return;
+                }
+            }
+        }
+    }
+}
+
+
+void db_binlog_recovery::releaseLog()
+{
+    if (_file != nullptr) {
+        delete _file;
+        _file = nullptr;
     }
 }
 

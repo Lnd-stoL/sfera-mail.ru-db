@@ -32,6 +32,7 @@ namespace sfera_db
         db_binlog_logger *_binlog = nullptr;
 
         db_operation *_currentOperation = nullptr;
+        uint64_t _lastKnownOpId = 0;
 
 
     private:
@@ -64,6 +65,7 @@ namespace sfera_db
         inline int rootPageId() const  { return _stableStorageFile->rootPageId(); }
 
         inline const pages_cache& pagesCache() const  { return *_pagesCache; }
+        inline uint64_t lastKnownOpId() const  { return _lastKnownOpId; }
     };
 
 }

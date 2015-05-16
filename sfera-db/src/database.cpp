@@ -33,8 +33,7 @@ auto database::createEmpty(const std::string &path, database_config const &confi
 
     db_page *rootPage = db->_dataStorage->allocatePage(true);
     db->_dataStorage->changeRootPage(rootPage->id());
-    rootPage->wasSaved(0); // TODO: qwertyu
-    //db->_dataStorage->writePage(rootPage);
+    rootPage->wasSaved(0); // TODO: dirty hack
     db->_dataStorage->releasePage(rootPage);
 
     return db;
@@ -45,6 +44,7 @@ auto database::openExisting(const std::string &path) -> database *
 {
     database *db = new database();
     db->_dataStorage = db_data_storage::openExisting(path);
+    db->_currentOperationId = db->_dataStorage->lastKnownOpId() + 1;
 
     return db;
 }

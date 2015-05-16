@@ -17,21 +17,21 @@ namespace sfera_db
     {
     public:
         enum type_t : uint8_t { UNKNOWN, OPERATION, LOG_CLOSED, CHECKPOINT };
+        static const uint32_t magicHeader = 0x109be912;
 
     protected:
         type_t _type   = UNKNOWN;
         uint32_t _length = 0;
         uint64_t _lsn  = 0;
 
-        const uint32_t _magic = 0x109be912;
-        const size_t _headerSize = sizeof(_magic) + sizeof(_length) + sizeof(_lsn) + sizeof(_type);
+        const size_t _headerSize = sizeof(magicHeader) + sizeof(_length) + sizeof(_lsn) + sizeof(_type);
 
 
     protected:
         void _fillHeader(uint8_t *header);
         void _unpackHeader(uint8_t *header);
 
-        static inline off_t _typeOffset()  { return sizeof(_magic) + sizeof(_length) + sizeof(_lsn); }
+        static inline off_t _typeOffset()  { return sizeof(magicHeader) + sizeof(_length) + sizeof(_lsn); }
 
     public:
         binlog_record(type_t t, uint64_t lsn);
@@ -64,6 +64,11 @@ namespace sfera_db
 
     //----------------------------------------------------------------------------------------------------------------------
 
+    class db_binlog_recovery;
+
+    //----------------------------------------------------------------------------------------------------------------------
+
+
     class db_binlog_logger
     {
     private:
@@ -79,7 +84,7 @@ namespace sfera_db
     public:
         ~db_binlog_logger();
         static db_binlog_logger *createEmpty(const std::string& path);
-        static db_binlog_logger *openExisting(const std::string& path);
+        static db_binlog_logger *openExisting(const std::string& path, const db_binlog_recovery& recoveryTool);
 
         void logOperation(db_operation *operation);
         void logCheckpoint();
@@ -97,17 +102,23 @@ namespace sfera_db
         raw_file *_file = nullptr;
         bool _closedProperly = false;
 
+        uint64_t _lastLsn = 0;
+        uint64_t _lastOpId = 0;
+
 
     protected:
         void _findBackCheckpoint();
+        void _findBackLastValidRecord();
 
     public:
         db_binlog_recovery(const std::string &path);
         ~db_binlog_recovery();
 
+        void releaseLog();
         void doRecovery(db_stable_storage_file *stableStorage);
 
-        inline bool valid() const  { return _file != nullptr; }
+        inline uint64_t lastLsn() const     { return _lastLsn; }
+        inline uint64_t lastOpId() const    { return _lastOpId; }
         inline bool closedProperly() const  { return _closedProperly; }
     };
 }

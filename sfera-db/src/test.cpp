@@ -27,7 +27,7 @@ void fillTestSet(std::vector<std::pair<data_blob, data_blob>> &testSet, size_t c
 void testOpening(std::vector<std::pair<data_blob, data_blob>> &testSet)
 {
     database *db = database::openExisting("test_db");
-    std::cout << std::endl << db->dumpTree() << std::endl;
+    //std::cout << std::endl << db->dumpTree() << std::endl;
 
     bool getOK = true;
     for (size_t i = 0; i < testSet.size(); ++i) {
@@ -55,19 +55,19 @@ int main (int argc, char** argv)
     database_config dbConfig;
     dbConfig.pageSizeBytes = 1024;
     dbConfig.maxDBSize = 100000*1024;
-    dbConfig.cacheSizePages = 32;
+    dbConfig.cacheSizePages = 64;
 
     std::vector<std::pair<data_blob, data_blob>> testSet;
-    fillTestSet(testSet, 1000);
+    fillTestSet(testSet, 40000);
 
     if (database::exists("test_db")) {
-        //testOpening(testSet);
-        //return 0;
+        testOpening(testSet);
+        return 0;
     }
 
     database *db = database::createEmpty("test_db", dbConfig);
 
-    for (int j = 0; j < 5; ++j) {
+    for (int j = 0; j < 1; ++j) {
 
         // insertion
         for (size_t i = 0; i < testSet.size(); ++i) {
@@ -99,6 +99,7 @@ int main (int argc, char** argv)
 
         std::random_shuffle(testSet.begin(), testSet.end());
 
+        /*
     // removing
     for (size_t i = 0; i < testSet.size(); ++i) {
         std::cout << "REMOVE " << testSet[i].first.toString() << " ";
@@ -110,11 +111,11 @@ int main (int argc, char** argv)
     }
 
     std::cout << std::endl << db->dumpTree() << std::endl;
-
+*/
 
     }
 
     std::cout << std::endl << "=== cache statistics ===\n" << db->dumpCacheStatistics() << std::endl;
-    //delete db;
+    delete db;
     return 0;
 }

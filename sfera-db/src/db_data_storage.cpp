@@ -23,16 +23,17 @@ auto db_data_storage::openExisting(const std::string &dirPath, const db_data_sto
     auto dbDataStorage = new db_data_storage();
     dbDataStorage->_stableStorageFile = db_stable_storage_file::openExisting(dirPath + "/" + StableStorageFileName);
 
-    db_binlog_recovery *binlog_recovery = new db_binlog_recovery(dirPath + "/" + dbDataStorage->LogFileName);
-    if (!binlog_recovery->closedProperly()) {
+    db_binlog_recovery binlogRecovery(dirPath + "/" + dbDataStorage->LogFileName);
+    if (!binlogRecovery.closedProperly()) {
         std::cerr << "warning: database wasn't closed peoperly last time -> applying recovery ..." << std::endl;
-        binlog_recovery->doRecovery(dbDataStorage->_stableStorageFile);
+        binlogRecovery.doRecovery(dbDataStorage->_stableStorageFile);
         std::cerr << "recovery completed" << std::endl;
     }
-    delete binlog_recovery;
+    binlogRecovery.releaseLog();
 
+    dbDataStorage->_lastKnownOpId = binlogRecovery.lastOpId();
     dbDataStorage->_initializeCache(params.cacheSizeInPages);
-    dbDataStorage->_binlog = db_binlog_logger::openExisting(dirPath + "/" + dbDataStorage->LogFileName);
+    dbDataStorage->_binlog = db_binlog_logger::openExisting(dirPath + "/" + dbDataStorage->LogFileName, binlogRecovery);
 
     return dbDataStorage;
 }

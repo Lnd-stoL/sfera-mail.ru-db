@@ -144,7 +144,7 @@ void raw_file::appedAll(std::pair<void const *, size_t> buffers[], size_t buffer
 
     int writtenBuffs = 0;
     for (size_t writtenBytes = 0; writtenBytes < summLen;) {
-        ssize_t writeResult = ::writev(_unixFD, &iovs[0], buffersCount);
+        ssize_t writeResult = ::writev(_unixFD, &iovs[0], (int)buffersCount);
         syscall_check( writeResult );
 
         assert( writeResult == summLen ); // TODO: not implemented correctly
@@ -154,17 +154,21 @@ void raw_file::appedAll(std::pair<void const *, size_t> buffers[], size_t buffer
 }
 
 
-void raw_file::readAll(void *data, size_t length)
+size_t raw_file::readAll(void *data, size_t length)
 {
-    for (size_t readBytes = 0; readBytes < length;) {
+    size_t readBytes = 0;
+
+    for (; readBytes < length;) {
         ssize_t readResult = ::read(_unixFD, (uint8_t *)data + readBytes, length - readBytes);
         syscall_check( readResult );
         if (readResult == 0) {
             _eof = true;
-            return;
+            return readBytes;
         }
         readBytes += readResult;
     }
+
+    return readBytes;
 }
 
 
