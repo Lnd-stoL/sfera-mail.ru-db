@@ -28,8 +28,8 @@
 
 //----------------------------------------------------------------------------------------------------------------------
 
-using namespace sfera_db;
-
+namespace sfera_db
+{
 //----------------------------------------------------------------------------------------------------------------------
 
 db_page::key_iterator::key_iterator(const db_page *page, int position) : _page (page), _position (position)
@@ -295,7 +295,7 @@ db_page::~db_page()
 
 void db_page::insert(db_page::key_iterator position, key_value data, int childId)
 {
-// this is useful to test page llocation related bugs
+// this is useful to test page allocation related bugs
 /*
     for (int i = 0; i < _recordCount; ++i)
         if (_hasLinks && childAt(i) == childId) assert(0);
@@ -308,7 +308,7 @@ void db_page::insert(db_page::key_iterator position, key_value data, int childId
 
 void db_page::reconnect(int position, int childId)
 {
-// this is useful to test page llocation related bugs
+// this is useful to test page allocation related bugs
 /*
     for (int i = 0; i < _recordCount; ++i)
         if (_hasLinks && childAt(i) == childId) assert(0);
@@ -508,4 +508,5 @@ uint8_t *db_page::bytes() const
     return _pageBytes;
 }
 
+//----------------------------------------------------------------------------------------------------------------------
 }

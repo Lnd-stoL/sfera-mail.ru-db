@@ -52,7 +52,7 @@ namespace sfera_db
         static db_stable_storage_file * openExisting(std::string const &fileName);
         static db_stable_storage_file * createEmpty(std::string const &fileName, db_data_storage_config const &config);
 
-        db_page*loadPage(int pageId);
+        db_page* loadPage(int pageId);
         db_page* allocatePage(bool isLeaf);
 
         void writePage(db_page *page);

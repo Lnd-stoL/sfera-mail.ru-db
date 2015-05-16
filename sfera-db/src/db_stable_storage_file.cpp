@@ -8,8 +8,8 @@
 
 //----------------------------------------------------------------------------------------------------------------------
 
-using namespace sfera_db;
-
+namespace sfera_db
+{
 //----------------------------------------------------------------------------------------------------------------------
 
 auto db_stable_storage_file::openExisting(const std::string &fileName) -> db_stable_storage_file *
@@ -216,4 +216,7 @@ void db_stable_storage_file::changeRootPage(int pageId)
 void db_stable_storage_file::_diskWriteRootPageId()
 {
     _file->writeAll(_rootPageId_InfileOffset, &_rootPageId, sizeof(_rootPageId));
+}
+
+//----------------------------------------------------------------------------------------------------------------------
 }

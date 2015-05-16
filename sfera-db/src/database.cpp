@@ -12,15 +12,15 @@
 
 //----------------------------------------------------------------------------------------------------------------------
 
-using namespace sfera_db;
-
+namespace sfera_db
+{
 //----------------------------------------------------------------------------------------------------------------------
 
 auto database::createEmpty(const std::string &path, database_config const &config) -> database *
 {
     struct stat dirstat = {};
     if (::stat(path.c_str(), &dirstat) != 0 || !S_ISDIR(dirstat.st_mode)) {
-        syscall_check( ::mkdir(path.c_str(), 0777) );
+        syscall_check(::mkdir(path.c_str(), 0777));
     }
 
     db_data_storage_config dbStorageCfg;
@@ -83,7 +83,7 @@ bool database::_binaryKeyComparer(data_blob key1, data_blob key2)
 {
     int cr = memcmp(key1.dataPtr(), key2.dataPtr(), std::min(key1.length(), key2.length()));
 
-    if (cr < 0)  return true;
+    if (cr < 0) return true;
     if (cr == 0) return key1.length() < key2.length();
     return false;
 }
@@ -91,7 +91,7 @@ bool database::_binaryKeyComparer(data_blob key1, data_blob key2)
 
 bool database::_keysEqual(data_blob key1, data_blob key2)
 {
-    if (key1.length() != key2.length())  return false;
+    if (key1.length() != key2.length()) return false;
     return memcmp(key1.dataPtr(), key2.dataPtr(), key1.length()) == 0;
 }
 
@@ -156,7 +156,8 @@ bool database::_rKeyErasingLookup(int pageId, int parentPageId, int parentRecord
     int nextParPageId = page->id();
     _dataStorage->releasePage(page);
 
-    if (_rKeyErasingLookup(nextPageId, nextParPageId, keyIt.position(), elementKey)) {    // we need to check the page
+    if (_rKeyErasingLookup(nextPageId, nextParPageId, keyIt.position(),
+                           elementKey)) {    // we need to check the page
         return _testRebalanceAfterDelete(nextParPageId, parentPageId, parentRecordPos);
     }
     return false;
@@ -165,7 +166,7 @@ bool database::_rKeyErasingLookup(int pageId, int parentPageId, int parentRecord
 
 void database::_makeNewRoot(key_value element, int leftLink, int rightLink)
 {
-    db_page* newRootPage = _dataStorage->allocatePage(false);
+    db_page *newRootPage = _dataStorage->allocatePage(false);
     newRootPage->insert(0, element, leftLink);
     newRootPage->reconnect(1, rightLink);
 
@@ -203,7 +204,8 @@ db_page *database::_splitPage(db_page *page, int parentPageId, const key_value &
     } else {
 
         db_page *parentPage = _dataStorage->fetchPage(parentPageId);
-        auto insertionIt = std::lower_bound(parentPage->keysBegin(), parentPage->keysEnd(), medianElement.key, _binaryKeyComparer);
+        auto insertionIt = std::lower_bound(parentPage->keysBegin(), parentPage->keysEnd(), medianElement.key,
+                                            _binaryKeyComparer);
         parentPage->reconnect(insertionIt.position(), rightPage->id());
         parentPage->insert(insertionIt, medianElement, leftPage->id());
         _dataStorage->writePage(parentPage);
@@ -234,7 +236,7 @@ bool database::_makePageMinimallyFilled(db_page *page, int parentPageId, int par
 
     assert(rightNextPageId != -1 || leftPrevPageId != -1);
     db_page *rightNextPage = rightNextPageId == -1 ? nullptr : _dataStorage->fetchPage(rightNextPageId);
-    db_page *leftPrevPage  = leftPrevPageId  == -1 ? nullptr : _dataStorage->fetchPage(leftPrevPageId);
+    db_page *leftPrevPage = leftPrevPageId == -1 ? nullptr : _dataStorage->fetchPage(leftPrevPageId);
 
     bool ret = false;
     bool rotationSucceeded = _tryTakeFromNearest(page, parentPage, parentRecordPos, leftPrevPage, rightNextPage);
@@ -247,7 +249,7 @@ bool database::_makePageMinimallyFilled(db_page *page, int parentPageId, int par
     _dataStorage->writePage(page);
 
     _dataStorage->releasePage(parentPage);
-    if (leftPrevPage  != nullptr) _dataStorage->releasePage(leftPrevPage);
+    if (leftPrevPage != nullptr) _dataStorage->releasePage(leftPrevPage);
     if (rightNextPage != nullptr) _dataStorage->releasePage(rightNextPage);
 
     return ret;
@@ -257,13 +259,13 @@ bool database::_makePageMinimallyFilled(db_page *page, int parentPageId, int par
 void database::_mergePages(db_page *page, int parentRecordPos, db_page *parentPage, db_page *rightNextPage,
                            db_page *leftPrevPage)
 {
-    assert( page != rightNextPage && page != leftPrevPage );   // avoid self merging
+    assert(page != rightNextPage && page != leftPrevPage);   // avoid self merging
 
     size_t basicResultSize = page->usedBytes() + parentPage->usedBytesFor(parentRecordPos);
 
     if (rightNextPage != nullptr && rightNextPage->usedBytes() + basicResultSize < page->size()) {
         int linked = -1;
-        if (page->hasChildren())  linked = page->lastRightChild();
+        if (page->hasChildren()) linked = page->lastRightChild();
         page->append(parentPage->recordAt(parentRecordPos), linked);
 
         for (int i = 0; i < rightNextPage->recordCount(); ++i) {
@@ -278,14 +280,14 @@ void database::_mergePages(db_page *page, int parentRecordPos, db_page *parentPa
     } else if (leftPrevPage->usedBytes() + basicResultSize < page->size()) {
 
         int linked = -1;
-        if (page->hasChildren())  linked = leftPrevPage->lastRightChild();
+        if (page->hasChildren()) linked = leftPrevPage->lastRightChild();
         page->insert(0, parentPage->recordAt(parentRecordPos - 1), linked);
 
-        for (int i = (int)leftPrevPage->recordCount()-1; i >= 0; --i) {
+        for (int i = (int) leftPrevPage->recordCount() - 1; i >= 0; --i) {
             page->insert(0, leftPrevPage->recordAt(i), page->hasChildren() ? leftPrevPage->childAt(i) : -1);
         }
         _dataStorage->deallocatePage(leftPrevPage->id());
-        parentPage->remove(parentRecordPos-1);
+        parentPage->remove(parentRecordPos - 1);
     } else {
         assert(0); // todo handle this situation properly (can't merge pages though they are both not minimally filled)
     }
@@ -306,11 +308,11 @@ string database::dumpTree() const
 void database::_dump(std::ostringstream &info, int pageId) const
 {
     db_page *page = _dataStorage->fetchPage(pageId);
-    info << "page #" << pageId <<  ": (has_links=" << page->hasChildren() << "; is_full="
-        << page->isFull()  << "; is_minimally_filled=" << page->isMinimallyFilled()  << ") " << std::endl;
+    info << "page #" << pageId << ": (has_links=" << page->hasChildren() << "; is_full="
+    << page->isFull() << "; is_minimally_filled=" << page->isMinimallyFilled() << ") " << std::endl;
 
     for (auto elementIt = page->keysBegin(); elementIt != page->keysEnd(); ++elementIt) {
-        if (page->hasChildren())  info << "\t[" << elementIt.child() << "] " << std::endl;
+        if (page->hasChildren()) info << "\t[" << elementIt.child() << "] " << std::endl;
         info << "\t" << (*elementIt).toString() << " : " << elementIt.value().toString() << std::endl;
     }
     if (page->hasChildren()) {
@@ -342,7 +344,7 @@ void database::remove(data_blob key)
 
 bool database::_removeFromLeaf(db_page *page, int recPos, int parentPageId, int parentRecordPos)
 {
-    assert( !page->hasChildren() );
+    assert(!page->hasChildren());
 
     page->remove(recPos);
     if (page->isMinimallyFilled() ||
@@ -360,7 +362,7 @@ bool database::_removeFromLeaf(db_page *page, int recPos, int parentPageId, int 
 }
 
 
-db_page* database::_findPageNeighbours(const record_internal_id &parentRecord, int &leftPrevPageId,
+db_page *database::_findPageNeighbours(const record_internal_id &parentRecord, int &leftPrevPageId,
                                        int &rightNextPageId)
 {
     db_page *parentPage = _dataStorage->fetchPage(parentRecord.pageId);
@@ -373,7 +375,7 @@ db_page* database::_findPageNeighbours(const record_internal_id &parentRecord, i
     }
 
 
-    assert( rightNextPageId != leftPrevPageId  );
+    assert(rightNextPageId != leftPrevPageId);
     return parentPage;
 }
 
@@ -389,7 +391,7 @@ string database::dumpSortedKeys() const
 void database::_rDumpSortedKeys(std::ostringstream &info, int pageId) const
 {
     db_page *page = _dataStorage->fetchPage(pageId);
-    info << "\tpage #" << pageId <<  ": (has_links=" << page->hasChildren() << ")" << std::endl;
+    info << "\tpage #" << pageId << ": (has_links=" << page->hasChildren() << ")" << std::endl;
 
     for (auto elementIt = page->keysBegin(); elementIt != page->keysEnd(); ++elementIt) {
         if (page->hasChildren()) {
@@ -408,10 +410,10 @@ void database::_rDumpSortedKeys(std::ostringstream &info, int pageId) const
 
 
 bool database::_tryTakeFromNearest(db_page *page, db_page *parentPage, int parentRecPos,
-                                        db_page *leftPrevPage, db_page *rightNextPage)
+                                   db_page *leftPrevPage, db_page *rightNextPage)
 {
     if (leftPrevPage != nullptr) {
-        int leftPrevMedianPos = (int)leftPrevPage->recordCount() - 1;
+        int leftPrevMedianPos = (int) leftPrevPage->recordCount() - 1;
         if (leftPrevPage->willRemainMinimallyFilledWithout(leftPrevMedianPos)) {
 
             key_value_copy medianElement(leftPrevPage->recordAt(leftPrevMedianPos));
@@ -419,11 +421,12 @@ bool database::_tryTakeFromNearest(db_page *page, db_page *parentPage, int paren
             int leftMedLink = leftPrevPage->hasChildren() ? leftPrevPage->childAt(leftPrevMedianPos) : -1;
 
             leftPrevPage->remove(leftPrevMedianPos);
-            if (leftPrevPage->hasChildren()) leftPrevPage->reconnect((int) leftPrevPage->recordCount(), leftMedLink);
+            if (leftPrevPage->hasChildren())
+                leftPrevPage->reconnect((int) leftPrevPage->recordCount(), leftMedLink);
             _dataStorage->writePage(leftPrevPage);
 
             page->insert(0, parentPage->recordAt(parentRecPos - 1), leftLastLink);
-            parentPage->replace(parentRecPos-1, medianElement,
+            parentPage->replace(parentRecPos - 1, medianElement,
                                 parentPage->childAt(parentRecPos - 1));
 
             medianElement.release();
@@ -439,7 +442,7 @@ bool database::_tryTakeFromNearest(db_page *page, db_page *parentPage, int paren
             rightNextPage->remove(rightNextMedianPos);
             _dataStorage->writePage(rightNextPage);
 
-            page->insert((int)page->recordCount(), parentPage->recordAt(parentRecPos),
+            page->insert((int) page->recordCount(), parentPage->recordAt(parentRecPos),
                          page->hasChildren() ? page->lastRightChild() : -1);
             if (page->hasChildren()) page->reconnect((int) page->recordCount(), rightMedLink);
             parentPage->replace(parentRecPos, medianElement,
@@ -457,7 +460,7 @@ bool database::_tryTakeFromNearest(db_page *page, db_page *parentPage, int paren
 void database::_checkAndRemoveEmptyRoot()
 {
     db_page *rootPage = _dataStorage->fetchPage(_dataStorage->rootPageId());
-    assert(rootPage->hasChildren() );
+    assert(rootPage->hasChildren());
     if (rootPage->recordCount() > 0) {
         _dataStorage->releasePage(rootPage);
         return;
@@ -476,7 +479,7 @@ bool database::_removeFromNode(db_page *nodePage, int parentPageId, int parentRe
     int nextParPageId = nodePage->id();
     _dataStorage->releasePage(nodePage);
 
-    _rRemoveFromNodeR(nextPageId, nextParPageId, recPos+1, mostLeftElement, false);
+    _rRemoveFromNodeR(nextPageId, nextParPageId, recPos + 1, mostLeftElement, false);
 
     nodePage = _dataStorage->fetchPage(nextParPageId);
     nodePage->replace(recPos, mostLeftElement, nodePage->childAt(recPos));
@@ -484,8 +487,8 @@ bool database::_removeFromNode(db_page *nodePage, int parentPageId, int parentRe
     _dataStorage->releasePage(nodePage);
     mostLeftElement.release();
 
-    if (_testRebalanceAfterDelete(nextPageId, nextParPageId, recPos+1)) {
-        return  _testRebalanceAfterDelete(nextParPageId, parentPageId, parentRecPos);
+    if (_testRebalanceAfterDelete(nextPageId, nextParPageId, recPos + 1)) {
+        return _testRebalanceAfterDelete(nextParPageId, parentPageId, parentRecPos);
     }
 
     return false;
@@ -581,7 +584,7 @@ data_blob_copy database::_lookupByKey(data_blob key)
 string database::dumpCacheStatistics() const
 {
     std::ostringstream str;
-    auto cacheStatistics  =_dataStorage->pagesCache().statictics();
+    auto cacheStatistics = _dataStorage->pagesCache().statictics();
 
     str << "fetches: " << cacheStatistics.fetchesCount << std::endl;
     str << "misses: " << cacheStatistics.missesCount << std::endl;
@@ -595,4 +598,7 @@ string database::dumpCacheStatistics() const
 bool database::exists(const std::string &path)
 {
     return db_data_storage::exists(path);
+}
+
+//----------------------------------------------------------------------------------------------------------------------
 }

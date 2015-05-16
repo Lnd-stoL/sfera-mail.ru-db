@@ -1,10 +1,10 @@
 
-#include "db_operation.h"
+#include "db_operation.hpp"
 
 //----------------------------------------------------------------------------------------------------------------------
 
-using namespace sfera_db;
-
+namespace sfera_db
+{
 //----------------------------------------------------------------------------------------------------------------------
 
 void db_operation::writesPage(db_page *page)
@@ -25,4 +25,7 @@ void db_operation::invalidatePage(int pageId)
 bool db_operation::isReadOnly()
 {
     return _pagesWriteSet.empty();
+}
+
+//----------------------------------------------------------------------------------------------------------------------
 }

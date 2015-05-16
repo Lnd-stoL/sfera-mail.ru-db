@@ -7,8 +7,8 @@
 
 //----------------------------------------------------------------------------------------------------------------------
 
-using namespace sfera_db;
-
+namespace sfera_db
+{
 //----------------------------------------------------------------------------------------------------------------------
 
 binlog_record::binlog_record(type_t t, uint64_t lsn) :
@@ -23,12 +23,16 @@ void binlog_record::_fillHeader(uint8_t *header)
 {
     uint8_t *headerWriter = header;
 
-    *(uint32_t*) headerWriter = _magic;         headerWriter += sizeof(_magic);
-    *(uint32_t*) headerWriter = _length;        headerWriter += sizeof(_length);
-    *(uint64_t*) headerWriter = _lsn;           headerWriter += sizeof(_lsn);
-    *(type_t*) headerWriter = _type;            headerWriter += sizeof(_type);
+    *(uint32_t *) headerWriter = _magic;
+    headerWriter += sizeof(_magic);
+    *(uint32_t *) headerWriter = _length;
+    headerWriter += sizeof(_length);
+    *(uint64_t *) headerWriter = _lsn;
+    headerWriter += sizeof(_lsn);
+    *(type_t *) headerWriter = _type;
+    headerWriter += sizeof(_type);
 
-    assert( headerWriter - header == _headerSize );
+    assert(headerWriter - header == _headerSize);
 }
 
 
@@ -36,17 +40,21 @@ void binlog_record::_unpackHeader(uint8_t *header)
 {
     uint8_t *headerReader = header;
 
-    uint32_t magic = *(uint32_t*) headerReader;     headerReader += sizeof(_magic);
+    uint32_t magic = *(uint32_t *) headerReader;
+    headerReader += sizeof(_magic);
     if (magic != _magic) {
         _type = UNKNOWN;
         return;
     }
 
-    _length         = *(uint32_t*)headerReader;     headerReader += sizeof(_length);
-    _lsn            = *(uint64_t*)headerReader;     headerReader += sizeof(_lsn);
-    _type           = *(type_t*)headerReader;       headerReader += sizeof(_type);
+    _length = *(uint32_t *) headerReader;
+    headerReader += sizeof(_length);
+    _lsn = *(uint64_t *) headerReader;
+    headerReader += sizeof(_lsn);
+    _type = *(type_t *) headerReader;
+    headerReader += sizeof(_type);
 
-    assert( headerReader - header == _headerSize );
+    assert(headerReader - header == _headerSize);
 }
 
 
@@ -55,9 +63,9 @@ void binlog_record::writeTo(raw_file *file)
     uint8_t header[_headerSize];
     _fillHeader(header);
 
-    std::pair<const void*, size_t> buffers[] = {
-            { header,   sizeof(header)  },
-            { &_length, sizeof(_length) }
+    std::pair<const void *, size_t> buffers[] = {
+            {header,   sizeof(header)},
+            {&_length, sizeof(_length)}
     };
 
     file->appedAll(buffers, 2);
@@ -71,7 +79,7 @@ bool binlog_record::readFrom(raw_file *file)
     _unpackHeader(header);
 
     if (_type == UNKNOWN) {
-        assert( 0 );
+        assert(0);
         return false;
     }
 
@@ -80,7 +88,8 @@ bool binlog_record::readFrom(raw_file *file)
 }
 
 
-binlog_record::type_t binlog_record::fetchType(raw_file *file)
+binlog_record::type_t
+binlog_record::fetchType(raw_file *file)
 {
     ::lseek(file->uinxFD(), _typeOffset(), SEEK_CUR);
     type_t recType;
@@ -93,12 +102,12 @@ binlog_record::type_t binlog_record::fetchType(raw_file *file)
 //----------------------------------------------------------------------------------------------------------------------
 
 binlog_operation_record::binlog_operation_record(binlog_record::type_t t, uint64_t lsn, db_operation *op) :
-    binlog_record(t, lsn),
-    _operation(op)
+        binlog_record(t, lsn),
+        _operation(op)
 {
     auto pagesCount = _operation->pagesWriteSet().size();
     _length += sizeof(uint32_t) /* pagesCount */ +
-        (_operation->pagesWriteSet().begin()->second->size() + sizeof(int)) * pagesCount;
+               (_operation->pagesWriteSet().begin()->second->size() + sizeof(int)) * pagesCount;
 }
 
 
@@ -112,18 +121,18 @@ void binlog_operation_record::writeTo(raw_file *file)
     uint32_t pagesIds[pagesCount];
 
     uint32_t buffersCount = (uint32_t) pages.size() + 4;
-    auto buffers = new std::pair<const void*, size_t>[buffersCount];
-    buffers[0] = { header,       sizeof(header)     };
-    buffers[1] = { &pagesCount,  sizeof(pagesCount) };
-    buffers[2] = { pagesIds,     sizeof(pagesIds)   };
+    auto buffers = new std::pair<const void *, size_t>[buffersCount];
+    buffers[0] = {header, sizeof(header)};
+    buffers[1] = {&pagesCount, sizeof(pagesCount)};
+    buffers[2] = {pagesIds, sizeof(pagesIds)};
 
     auto pagesIt = pages.cbegin();
     for (int i = 0; i < pages.size(); ++i, ++pagesIt) {
         pagesIt->second->prepareForWriting();
-        buffers[i + 3] = { pagesIt->second->bytes(), pagesIt->second->size() };
+        buffers[i + 3] = {pagesIt->second->bytes(), pagesIt->second->size()};
         pagesIds[i] = pagesIt->second->id();
     }
-    buffers[buffersCount - 1] = { &_length, sizeof(_length) };
+    buffers[buffersCount - 1] = {&_length, sizeof(_length)};
 
     file->appedAll(buffers, buffersCount);
     delete buffers;
@@ -141,12 +150,12 @@ bool binlog_operation_record::readFrom(raw_file *file)
     uint32_t pagesIds[pageCount];
     file->readAll(pagesIds, sizeof(pagesIds));
 
-    uint32_t pageSize = (uint32_t)(_length - _headerSize - sizeof(_length) - sizeof(pageCount) - sizeof(pagesIds));
+    uint32_t pageSize = (uint32_t) (_length - _headerSize - sizeof(_length) - sizeof(pageCount) - sizeof(pagesIds));
     pageSize /= pageCount;
 
     for (int i = 0; i < pageCount; ++i) {
 
-        uint8_t *pageBytes = (uint8_t *)::malloc(pageSize);
+        uint8_t *pageBytes = (uint8_t *) ::malloc(pageSize);
         file->readAll(pageBytes, pageSize);
         db_page *nextPage = db_page::load(pagesIds[i], data_blob(pageBytes, pageSize));
         _operation->writesPage(nextPage);
@@ -217,7 +226,7 @@ db_binlog_recovery::db_binlog_recovery(const std::string &path)
     ::lseek(_file->uinxFD(), -sizeof(uint32_t), SEEK_END);
     uint32_t lastMsgLen = 0;
     _file->readAll(&lastMsgLen, sizeof(lastMsgLen));
-    ::lseek(_file->uinxFD(), -((off_t)lastMsgLen), SEEK_CUR);
+    ::lseek(_file->uinxFD(), -((off_t) lastMsgLen), SEEK_CUR);
 
     binlog_record lastRecord;
     if (!lastRecord.readFrom(_file)) {
@@ -245,8 +254,8 @@ void db_binlog_recovery::doRecovery(db_stable_storage_file *stableStorage)
     while (!_file->eof()) {
         binlog_record::type_t nextRecordType = binlog_record::fetchType(_file);
         if (_file->eof()) break;
-        if (nextRecordType == binlog_record::LOG_CLOSED ) break;
-        assert( nextRecordType ==  binlog_record::OPERATION );
+        if (nextRecordType == binlog_record::LOG_CLOSED) break;
+        assert(nextRecordType == binlog_record::OPERATION);
 
         db_operation nextOperation(0);
         binlog_operation_record nextOperationRec(&nextOperation);
@@ -261,8 +270,8 @@ void db_binlog_recovery::doRecovery(db_stable_storage_file *stableStorage)
                 stablePageVersion->lastModifiedOpId() < nextPage->lastModifiedOpId()) {
 
                 std::cerr << "[recovery] page #" << nextPage->id() << " fixed from " <<
-                        (stablePageVersion == nullptr ? 0 : stablePageVersion->lastModifiedOpId()) <<
-                        " to " << nextPage->lastModifiedOpId() << std::endl;
+                (stablePageVersion == nullptr ? 0 : stablePageVersion->lastModifiedOpId()) <<
+                " to " << nextPage->lastModifiedOpId() << std::endl;
 
                 stableStorage->writePage(nextPage);  // replace the page in stable storage
             }
@@ -281,11 +290,11 @@ void db_binlog_recovery::_findBackCheckpoint()
     while (::lseek(_file->uinxFD(), -sizeof(uint32_t), SEEK_CUR) != -1) {
         uint32_t msgLen = 0;
         _file->readAll(&msgLen, sizeof(msgLen));
-        off_t msgBegin = ::lseek(_file->uinxFD(), -(off_t)msgLen, SEEK_CUR);
+        off_t msgBegin = ::lseek(_file->uinxFD(), -(off_t) msgLen, SEEK_CUR);
 
         binlog_record record;
         if (!record.readFrom(_file)) {
-            assert( 0 ); // TODO: handle invalid log format
+            assert(0); // TODO: handle invalid log format
             return;
         }
 
@@ -295,4 +304,7 @@ void db_binlog_recovery::_findBackCheckpoint()
 
         ::lseek(_file->uinxFD(), msgBegin, SEEK_SET);
     }
+}
+
+//----------------------------------------------------------------------------------------------------------------------
 }

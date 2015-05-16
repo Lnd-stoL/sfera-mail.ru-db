@@ -60,8 +60,6 @@ namespace sfera_db
         void onOperationStart(db_operation *op);
         void onOperationEnd();
 
-        void replacePage(db_page *page);
-
         void changeRootPage(int pageId);
         inline int rootPageId() const  { return _stableStorageFile->rootPageId(); }
 

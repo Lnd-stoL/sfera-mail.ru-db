@@ -58,7 +58,7 @@ int main (int argc, char** argv)
     dbConfig.cacheSizePages = 32;
 
     std::vector<std::pair<data_blob, data_blob>> testSet;
-    fillTestSet(testSet, 10000);
+    fillTestSet(testSet, 1000);
 
     if (database::exists("test_db")) {
         //testOpening(testSet);

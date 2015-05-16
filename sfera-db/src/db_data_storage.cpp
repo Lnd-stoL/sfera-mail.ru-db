@@ -8,8 +8,8 @@
 
 //----------------------------------------------------------------------------------------------------------------------
 
-using namespace sfera_db;
-
+namespace sfera_db
+{
 //----------------------------------------------------------------------------------------------------------------------
 
 const std::string db_data_storage::StableStorageFileName = "data.sdbs";
@@ -164,4 +164,7 @@ void db_data_storage::onOperationEnd()
 bool db_data_storage::exists(const std::string &path)
 {
     return raw_file::exists(path + "/" + StableStorageFileName);
+}
+
+//----------------------------------------------------------------------------------------------------------------------
 }
