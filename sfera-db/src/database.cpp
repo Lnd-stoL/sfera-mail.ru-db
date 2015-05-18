@@ -188,8 +188,7 @@ void database::_tryInsertInPage(int pageId, int parentPageId, const key_value &e
 
     auto insertionIt = std::lower_bound(page->keysBegin(), page->keysEnd(), element.key, _binaryKeyComparer);
     page->insert(insertionIt, element);
-    _dataStorage->writePage(page);
-    _dataStorage->releasePage(page);
+    _dataStorage->writeAndRelease(page);
 }
 
 

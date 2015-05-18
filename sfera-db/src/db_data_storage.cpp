@@ -67,8 +67,11 @@ void db_data_storage::writePage(db_page *page)
     assert( page != nullptr );
     assert( page->wasChanged() );
 
-    _currentOperation->writesPage(page);    // instead add the page to the current operation's write set
-    _pagesCache->makeDirty(page);
+    if (!_currentOperation->writesPage(page)) {     // instead immidiate writing add the page to the current operation's write set
+        _pagesCache->pin(page);                     // because of no steal
+        _pagesCache->makeDirty(page);
+    }
+
     page->wasSaved(_currentOperation->id());
 }
 
@@ -94,7 +97,6 @@ db_page* db_data_storage::fetchPage(int pageId)
 {
     db_page *cachedVersion = _pagesCache->fetchAndPin(pageId);
     if (cachedVersion == nullptr) {
-
         cachedVersion = _stableStorageFile->loadPage(pageId);
         _pagesCache->cacheAndPin(cachedVersion);
     }
@@ -114,7 +116,8 @@ void db_data_storage::releasePage(db_page *page)
     assert( page != nullptr );
     assert( !page->wasChanged() );  // normally the page has to be written to disk before releasing if it has been changed
 
-    _pagesCache->unpinIfClean(page);        // do nothing on dirty pages here because of no steal
+    //_pagesCache->unpinIfClean(page);        // do nothing on dirty pages here because of no steal
+    _pagesCache->unpin(page);
 }
 
 

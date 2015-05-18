@@ -30,7 +30,6 @@ namespace sfera_db
         struct cached_page_info
         {
             int pinned = 0;
-            bool permanent = false;
             bool dirty = false;
             std::list<int>::const_iterator lruQueueIterator;
 
@@ -52,7 +51,7 @@ namespace sfera_db
 
     private:
         void _writeAndDestroyPage(const cached_page_info &pageInfo);
-        void _evict();
+        bool _evict();
         void _lruAdd(cached_page_info &pageInfo);
         void _lruAccess(cached_page_info &pageInfo);
 
@@ -65,13 +64,12 @@ namespace sfera_db
 
         db_page* fetchAndPin(int pageId);
         void cacheAndPin(db_page *page);
-        void pin(db_page* page);
+        void invalidateCachedPage(int pageId);
         void makeDirty(db_page *page);
-        void makePermanent(db_page *page);
-        void makeEvictable(db_page *page);
+
+        void pin(db_page* page);
         void unpin(db_page *page);
         void unpinIfClean(db_page *page);
-        void invalidateCachedPage(int pageId);
 
         inline const statistics_t& statictics() const  { return _statistics; }
     };

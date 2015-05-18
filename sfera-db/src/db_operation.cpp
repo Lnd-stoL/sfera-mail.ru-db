@@ -1,5 +1,6 @@
 
 #include "db_operation.hpp"
+#include <cassert>
 
 //----------------------------------------------------------------------------------------------------------------------
 
@@ -7,9 +8,16 @@ namespace sfera_db
 {
 //----------------------------------------------------------------------------------------------------------------------
 
-void db_operation::writesPage(db_page *page)
+bool db_operation::writesPage(db_page *page)
 {
-    _pagesWriteSet[page->id()] = page;
+    auto pageIt = _pagesWriteSet.find(page->id());
+    if (pageIt == _pagesWriteSet.end()) {
+        _pagesWriteSet.insert(std::make_pair(page->id(), page));
+        return false;
+    }
+
+    assert( pageIt->second == page );
+    return true;
 }
 
 

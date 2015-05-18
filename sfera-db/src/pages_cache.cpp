@@ -24,7 +24,8 @@ db_page* pages_cache::fetchAndPin(int pageId)
         return nullptr;
     }
 
-    pageIt->second.pinned = 1;
+    assert(pageIt->second.pinned <= 1);
+    pageIt->second.pinned++;
     _lruAccess(pageIt->second);
 
     return pageIt->second.page;
@@ -52,7 +53,8 @@ void pages_cache::unpin(db_page *page)
     auto pageIt = _cachedPages.find(page->id());
     if (pageIt == _cachedPages.end()) return;
 
-    pageIt->second.pinned = 0;
+    assert( pageIt->second.pinned > 0 );    // this is actual for one-threaded db
+    pageIt->second.pinned--;
 }
 
 
@@ -72,15 +74,6 @@ void pages_cache::makeDirty(db_page *page)
     assert( pageIt != _cachedPages.end() );
 
     pageIt->second.dirty = true;
-}
-
-
-void pages_cache::makePermanent(db_page *page)
-{
-    auto pageIt = _cachedPages.find(page->id());
-    assert( pageIt != _cachedPages.end() );
-
-    pageIt->second.permanent = true;
 }
 
 
@@ -121,30 +114,31 @@ pages_cache::~pages_cache()
 }
 
 
-void pages_cache::_evict()
+bool pages_cache::_evict()
 {
+    _statistics.ecivtionsCount++;
+
     int pageId = _lruQueue.front();
     auto pageIt = _cachedPages.find(pageId);
     assert( pageIt != _cachedPages.end() );
 
     cached_page_info &pageInfo = pageIt->second;
-    if (pageInfo.pinned > 0 || pageInfo.permanent) {
+    if (pageInfo.pinned > 0) {
         _statistics.failedEvictions++;
-        return;
+        return false;
     }
 
     _writeAndDestroyPage(pageInfo);
     _lruQueue.pop_front();
     _cachedPages.erase(pageIt);
+
+    return true;
 }
 
 
 void pages_cache::_lruAdd(cached_page_info &pageInfo)
 {
-    if (_lruQueue.size() >= _sizePages) {
-        _statistics.ecivtionsCount++;
-        _evict();
-    }
+    while (_lruQueue.size() >= _sizePages && _evict());
 
     _lruQueue.push_back(pageInfo.page->id());
     pageInfo.lruQueueIterator = _lruQueue.cend();
@@ -162,21 +156,12 @@ void pages_cache::_lruAccess(cached_page_info &pageInfo)
 }
 
 
-void pages_cache::makeEvictable(db_page *page)
-{
-    auto pageIt = _cachedPages.find(page->id());
-    assert( pageIt != _cachedPages.end() );
-
-    pageIt->second.permanent = false;
-}
-
-
 void pages_cache::pin(db_page *page)
 {
     auto pageIt = _cachedPages.find(page->id());
     assert( pageIt != _cachedPages.end() );
 
-    pageIt->second.pinned = 1;
+    pageIt->second.pinned++;
 }
 
 
@@ -187,7 +172,7 @@ void pages_cache::unpinIfClean(db_page *page)
     //assert( pageIt != _cachedPages.end() );
 
     if (!pageIt->second.dirty) {
-        pageIt->second.pinned = 0;
+        pageIt->second.pinned--;
     }
 }
 

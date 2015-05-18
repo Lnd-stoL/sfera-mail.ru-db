@@ -23,7 +23,7 @@ namespace sfera_db
     public:
         db_operation(uint64_t id) : _id(id) { }
 
-        void writesPage(db_page* page);
+        bool writesPage(db_page *page);    // returns true if page already exists in the writeSet
         void invalidatePage(int pageId);
 
         bool isReadOnly();

@@ -53,9 +53,9 @@ void testOpening(std::vector<std::pair<data_blob, data_blob>> &testSet)
 int main (int argc, char** argv)
 {
     database_config dbConfig;
-    dbConfig.pageSizeBytes = 1024;
+    dbConfig.pageSizeBytes = 2000;
     dbConfig.maxDBSize = 100000*1024;
-    dbConfig.cacheSizePages = 64;
+    dbConfig.cacheSizePages = 256;
 
     std::vector<std::pair<data_blob, data_blob>> testSet;
     fillTestSet(testSet, 40000);
