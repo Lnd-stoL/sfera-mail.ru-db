@@ -20,4 +20,4 @@ set(SOURCE_FILES
     src/db_data_storage_config.hpp
     )
 
-add_executable(sfera-db ${SOURCE_FILES})
+add_executable(sfera-db ${SOURCE_FILES} src/cached_page_info.hpp)

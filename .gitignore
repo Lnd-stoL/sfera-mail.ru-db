@@ -1,6 +1,10 @@
 *.pyc
 *.o
 *.so
+*.sdbs
+*.sdbl
 
 test_speed
 .idea
+./runner/mydbpath
+./sfera_db/bin

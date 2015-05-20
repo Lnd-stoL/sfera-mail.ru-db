@@ -11,7 +11,10 @@ namespace sfera_db
 pages_cache::pages_cache(size_t sizePages, std::function<void(db_page*)> pageWriter) :
     _sizePages(sizePages),
     _pageWriter(pageWriter)
-{  }
+{
+    _cachedPages.max_load_factor(1.5);
+    _cachedPages.reserve((size_t)((double)sizePages * 1.5));
+}
 
 
 db_page* pages_cache::fetchAndPin(int pageId)
@@ -24,37 +27,38 @@ db_page* pages_cache::fetchAndPin(int pageId)
         return nullptr;
     }
 
-    assert(pageIt->second.pinned <= 1);
-    pageIt->second.pinned++;
-    _lruAccess(pageIt->second);
+    cached_page_info& cachedPageInfo = pageIt->second;
+    cachedPageInfo.pinned++;
+    _lruAccess(cachedPageInfo);
 
-    return pageIt->second.page;
+    return cachedPageInfo.page;
 }
 
 
 void pages_cache::cacheAndPin(db_page *page)
 {
     assert( page != nullptr );
-    auto pageIt = _cachedPages.find(page->id());
+    assert( _cachedPages.find(page->id()) == _cachedPages.end() );
 
-    if (pageIt == _cachedPages.end()) {
-        cached_page_info newPageInfo(page);
-        newPageInfo.pinned = 1;
-        _lruAdd(newPageInfo);
-        _cachedPages[page->id()] = newPageInfo;
-    }
+    cached_page_info newPageInfo(page);
+    newPageInfo.pinned = 1;
+    _lruAdd(newPageInfo);
+    page->wasCached(&(_cachedPages.emplace(page->id(), newPageInfo).first->second));
 }
 
 
 void pages_cache::unpin(db_page *page)
 {
     assert( page != nullptr );
+    assert( page->cacheRelatedInfo() != nullptr );
 
-    auto pageIt = _cachedPages.find(page->id());
-    if (pageIt == _cachedPages.end()) return;
+    //auto pageIt = _cachedPages.find(page->id());
+    //if (pageIt == _cachedPages.end()) return;
 
-    assert( pageIt->second.pinned > 0 );    // this is actual for one-threaded db
-    pageIt->second.pinned--;
+    auto cachedPageInfo = page->cacheRelatedInfo();
+
+    assert( cachedPageInfo->pinned > 0 );    // this is actual for one-threaded db
+    cachedPageInfo->pinned--;
 }
 
 
@@ -70,10 +74,13 @@ void pages_cache::invalidateCachedPage(int pageId)
 
 void pages_cache::makeDirty(db_page *page)
 {
-    auto pageIt = _cachedPages.find(page->id());
-    assert( pageIt != _cachedPages.end() );
+    assert( page->cacheRelatedInfo() != nullptr );
+    auto cachedPageInfo = page->cacheRelatedInfo();
 
-    pageIt->second.dirty = true;
+    //auto pageIt = _cachedPages.find(page->id());
+    //assert( pageIt != _cachedPages.end() );
+
+    cachedPageInfo->dirty = true;
 }
 
 

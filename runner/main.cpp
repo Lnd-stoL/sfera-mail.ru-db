@@ -34,7 +34,7 @@ int clock_gettime(int flag, struct timespec *tspec) {
 int main(int argc, char *argv[]) {
 	std::string def_so_name = "./libmydb.so";
 	std::string def_db_name = "./mydbpath";
-	std::string def_wl_name = "../workloads/workload.uni";
+	std::string def_wl_name = "../workloads/rwd-workloads";
 	bool silent = false;
 
 	if (argc > 1) def_wl_name = std::string(argv[1]);
