@@ -583,7 +583,7 @@ data_blob_copy database::_lookupByKey(data_blob key)
 string database::dumpCacheStatistics() const
 {
     std::ostringstream str;
-    auto cacheStatistics = _dataStorage->pagesCache().statictics();
+    auto cacheStatistics = _dataStorage->pagesCache().statistics();
 
     str << "fetches: " << cacheStatistics.fetchesCount << std::endl;
     str << "misses: " << cacheStatistics.missesCount << std::endl;
@@ -1084,7 +1084,7 @@ void db_data_storage::writePage(db_page *page)
     assert( page->wasChanged() );
 
     if (!_currentOperation->writesPage(page)) {     // instead immidiate writing add the page to the current operation's write set
-        _pagesCache->pin(page);                     // because of no steal
+        _pagesCache->pin(page);                     // because of no steal logging strategy
         _pagesCache->makeDirty(page);
     }
 
@@ -1212,10 +1212,10 @@ bool db_operation::writesPage(db_page *page)
 
 void db_operation::invalidatePage(int pageId)
 {
-    auto pageIt = _pagesWriteSet.find(pageId);
-    if (pageIt == _pagesWriteSet.end()) return;
+    //auto pageIt = _pagesWriteSet.find(pageId);
+    //if (pageIt == _pagesWriteSet.end()) return;
 
-    _pagesWriteSet.erase(pageIt);
+    _pagesWriteSet.erase(pageId);
 }
 
 
@@ -1735,19 +1735,6 @@ uint8_t *db_page::bytes() const
     return _pageBytes;
 }
 
-
-void db_page::wasCached(pages_cache_internals::cached_page_info *cacheRelatedInfo)
-{
-    assert( cacheRelatedInfo != nullptr );
-    _cacheRelatedInfo = cacheRelatedInfo;
-}
-
-
-pages_cache_internals::cached_page_info *db_page::cacheRelatedInfo() const
-{
-    return _cacheRelatedInfo;
-}
-
 //----------------------------------------------------------------------------------------------------------------------
 }
 #include "db_stable_storage_file.hpp"
@@ -2048,8 +2035,8 @@ int db_delete(database *db, void *key, size_t length)
 extern "C"
 int db_select(database *db, void *key, size_t keyLength, void **pVal, size_t *pValLength)
 {
-//	if (db == nullptr || key == nullptr || keyLength == 0 || pVal == nullptr || pValLength == nullptr)
-//		return -1;
+	if (db == nullptr || key == nullptr || keyLength == 0 || pVal == nullptr || pValLength == nullptr)
+		return -1;
 
 	try {
 		data_blob_copy result = db->get(data_blob((uint8_t *)key, keyLength));
@@ -2094,6 +2081,7 @@ int db_flush(database *db)
 
 #include "pages_cache.hpp"
 #include <cassert>
+#include <iostream>
 
 //----------------------------------------------------------------------------------------------------------------------
 
@@ -2107,6 +2095,8 @@ pages_cache::pages_cache(size_t sizePages, std::function<void(db_page*)> pageWri
 {
     _cachedPages.max_load_factor(1.5);
     _cachedPages.reserve((size_t)((double)sizePages * 1.5));
+
+//    _writerThread = new std::thread([this]() { _writerThreadRoutine(); });
 }
 
 
@@ -2120,11 +2110,9 @@ db_page* pages_cache::fetchAndPin(int pageId)
         return nullptr;
     }
 
-    cached_page_info& cachedPageInfo = pageIt->second;
-    cachedPageInfo.pinned++;
-    _lruAccess(cachedPageInfo);
-
-    return cachedPageInfo.page;
+    pin(pageIt->second);
+    _lruAccess(pageIt->second);
+    return pageIt->second;
 }
 
 
@@ -2133,82 +2121,96 @@ void pages_cache::cacheAndPin(db_page *page)
     assert( page != nullptr );
     assert( _cachedPages.find(page->id()) == _cachedPages.end() );
 
-    cached_page_info newPageInfo(page);
-    newPageInfo.pinned = 1;
-    _lruAdd(newPageInfo);
-    page->wasCached(&(_cachedPages.emplace(page->id(), newPageInfo).first->second));
+    _cachedPages.emplace(page->id(), page);
+    pin(page);
+    _lruAdd(page);
 }
 
 
 void pages_cache::unpin(db_page *page)
 {
     assert( page != nullptr );
-    assert( page->cacheRelatedInfo() != nullptr );
+    assert( _cachedPages.find(page->id()) != _cachedPages.end() );
+    assert( page->cacheRelatedInfo().pinned > 0 );
 
-    //auto pageIt = _cachedPages.find(page->id());
-    //if (pageIt == _cachedPages.end()) return;
-
-    auto cachedPageInfo = page->cacheRelatedInfo();
-
-    assert( cachedPageInfo->pinned > 0 );    // this is actual for one-threaded db
-    cachedPageInfo->pinned--;
+    page->cacheRelatedInfo().pinned--;
 }
 
 
 void pages_cache::invalidateCachedPage(int pageId)
 {
-    cached_page_info &pageInfo = _cachedPages[pageId];
-    _lruQueue.erase(pageInfo.lruQueueIterator);
+    auto pageIt = _cachedPages.find(pageId);
+    assert( pageIt != _cachedPages.end() );
 
-    _writeAndDestroyPage(pageInfo);
+    auto pageCacneInfo = pageIt->second->cacheRelatedInfo();
+    assert( !pageCacneInfo.isUsed() );
+
+    _finalizePage(pageIt->second);
+    _lruQueue.erase(pageCacneInfo.lruQueueIterator);
     _cachedPages.erase(pageId);
 }
 
 
 void pages_cache::makeDirty(db_page *page)
 {
-    assert( page->cacheRelatedInfo() != nullptr );
-    auto cachedPageInfo = page->cacheRelatedInfo();
+    assert( page != nullptr );
+    assert( _cachedPages.find(page->id()) != _cachedPages.end() );
 
-    //auto pageIt = _cachedPages.find(page->id());
-    //assert( pageIt != _cachedPages.end() );
-
-    cachedPageInfo->dirty = true;
+    auto& cachedPageInfo = page->cacheRelatedInfo();
+    cachedPageInfo.dirty = true;
 }
 
 
 void pages_cache::flush()
 {
     for (auto cachedPage : _cachedPages) {
-        if (cachedPage.second.dirty) {
-            _pageWriter(cachedPage.second.page);
+        if (cachedPage.second->cacheRelatedInfo().dirty) {
+            _pageWriter(cachedPage.second);
+            cachedPage.second->cacheRelatedInfo().dirty = false;
         }
     }
 }
 
 
-void pages_cache::_writeAndDestroyPage(const cached_page_info &pageInfo)
+void pages_cache::_finalizePage(db_page *page)
 {
-    if (pageInfo.dirty) {
-        _pageWriter(pageInfo.page);
+    if (page->cacheRelatedInfo().dirty) {
+        _pageWriter(page);
     }
 
-    delete pageInfo.page;
+    assert( !page->cacheRelatedInfo().isUsed() );
+    _removeFromCache(page);
+    delete page;
 }
 
 
 void pages_cache::clearCache()
 {
+    std::vector<db_page *> pages;
+    pages.reserve(_cachedPages.size());
+
     for (auto cachedPage : _cachedPages) {
-        _writeAndDestroyPage(cachedPage.second);
+        if (cachedPage.second->cacheRelatedInfo().dirty)
+            pages.push_back(cachedPage.second);
     }
 
     _cachedPages.clear();
+    _lruQueue.clear();
+
+    for (auto page : pages) {
+        _pageWriter(page);
+    }
 }
 
 
 pages_cache::~pages_cache()
 {
+    /*
+    _writerThreadWorking = false;
+    _writeQueueCondVar.notify_all();
+    _writerThread->join();
+    */
+
     assert( _cachedPages.empty() );
     //clearCache();
 }
@@ -2222,59 +2224,92 @@ bool pages_cache::_evict()
     auto pageIt = _cachedPages.find(pageId);
     assert( pageIt != _cachedPages.end() );
 
-    cached_page_info &pageInfo = pageIt->second;
-    if (pageInfo.pinned > 0) {
+    auto& pageInfo = pageIt->second->cacheRelatedInfo();
+    if (pageInfo.isUsed()) {
         _statistics.failedEvictions++;
         return false;
     }
 
-    _writeAndDestroyPage(pageInfo);
     _lruQueue.pop_front();
-    _cachedPages.erase(pageIt);
 
+    //if (pageInfo.dirty) _enqueuePageWrite(pageInfo.page);
+    _finalizePage(pageIt->second);
     return true;
 }
 
 
-void pages_cache::_lruAdd(cached_page_info &pageInfo)
+void pages_cache::_removeFromCache(db_page *page)
 {
-    while (_lruQueue.size() >= _sizePages && _evict());
-
-    _lruQueue.push_back(pageInfo.page->id());
-    pageInfo.lruQueueIterator = _lruQueue.cend();
-    std::advance(pageInfo.lruQueueIterator, -1);
+    //_pagesCacheMutex.lock();
+    _cachedPages.erase(page->id());
+    //_pagesCacheMutex.unlock();
 }
 
 
-void pages_cache::_lruAccess(cached_page_info &pageInfo)
+void pages_cache::_lruAdd(db_page *page)
 {
-    _lruQueue.erase(pageInfo.lruQueueIterator);
+    while (_lruQueue.size() >= _sizePages && _evict());
 
-    _lruQueue.push_back(pageInfo.page->id());
-    pageInfo.lruQueueIterator = _lruQueue.cend();
-    std::advance(pageInfo.lruQueueIterator, -1);
+    _lruQueue.push_back(page->id());
+    page->cacheRelatedInfo().lruQueueIterator = _lruQueue.cend();
+    std::advance(page->cacheRelatedInfo().lruQueueIterator, -1);
+}
+
+
+void pages_cache::_lruAccess(db_page *page)
+{
+    _lruQueue.erase(page->cacheRelatedInfo().lruQueueIterator);
+
+    _lruQueue.push_back(page->id());
+    page->cacheRelatedInfo().lruQueueIterator = _lruQueue.cend();
+    std::advance(page->cacheRelatedInfo().lruQueueIterator , -1);
 }
 
 
 void pages_cache::pin(db_page *page)
 {
-    auto pageIt = _cachedPages.find(page->id());
-    assert( pageIt != _cachedPages.end() );
+    assert( page != nullptr );
+    assert( _cachedPages.find(page->id()) != _cachedPages.end() );
 
-    pageIt->second.pinned++;
+    auto& cachedPageInfo = page->cacheRelatedInfo();
+    cachedPageInfo.pinned++;
 }
 
-
-void pages_cache::unpinIfClean(db_page *page)
+/*
+void pages_cache::_writerThreadRoutine()
 {
-    auto pageIt = _cachedPages.find(page->id());
-    if (pageIt == _cachedPages.end()) return;
-    //assert( pageIt != _cachedPages.end() );
+    std::unique_lock<std::mutex> lock(_writeQueueMutex);
+    while (_writerThreadWorking) {
 
-    if (!pageIt->second.dirty) {
-        pageIt->second.pinned--;
+        while (!_pageToWriteAvaliable) {
+            _writeQueueCondVar.wait(lock);
+            if (!_writerThreadWorking) break;
+        }
+
+        while (!_diskWriteQueue.empty()) {
+            if (_diskWriteQueue.front()->cacheRelatedInfo()->pinned == 0) {
+                //_pageWriter(_diskWriteQueue.front());
+                std::cout << "writing: " << _diskWriteQueue.front()->id() << std::endl;
+                _finalizePage(*_diskWriteQueue.front()->cacheRelatedInfo());
+            }
+
+            _diskWriteQueue.pop();
+        }
+
+        _pageToWriteAvaliable = false;
     }
 }
+
+
+void pages_cache::_enqueuePageWrite(db_page* page)
+{
+    std::unique_lock<std::mutex> lock(_writeQueueMutex);
+
+    _diskWriteQueue.push(page);
+    _pageToWriteAvaliable = true;
+    _writeQueueCondVar.notify_one();
+}
+*/
 
 //----------------------------------------------------------------------------------------------------------------------
 }
@@ -2513,16 +2548,16 @@ void testOpening(std::vector<std::pair<data_blob, data_blob>> &testSet)
 int main (int argc, char** argv)
 {
     database_config dbConfig;
-    dbConfig.pageSizeBytes = 2000;
+    dbConfig.pageSizeBytes = 512;
     dbConfig.maxDBSize = 100000*1024;
-    dbConfig.cacheSizePages = 256;
+    dbConfig.cacheSizePages = 32;
 
     std::vector<std::pair<data_blob, data_blob>> testSet;
-    fillTestSet(testSet, 40000);
+    fillTestSet(testSet, 1000);
 
     if (database::exists("test_db")) {
-        testOpening(testSet);
-        return 0;
+        //testOpening(testSet);
+        //return 0;
     }
 
     database *db = database::createEmpty("test_db", dbConfig);
@@ -2531,7 +2566,7 @@ int main (int argc, char** argv)
 
         // insertion
         for (size_t i = 0; i < testSet.size(); ++i) {
-            std::cout << "INSERT " << testSet[i].first.toString() << " : " << testSet[i].second.toString() << std::endl;
+            std::cout << i << ": INSERT " << testSet[i].first.toString() << " : " << testSet[i].second.toString() << std::endl;
             db->insert(testSet[i].first, testSet[i].second);
 
             //std::cout << std::endl << db->dumpTree() << std::endl;
@@ -2542,7 +2577,7 @@ int main (int argc, char** argv)
         // getting
         bool getOK = true;
         for (size_t i = 0; i < testSet.size(); ++i) {
-            std::cout << "GET " << testSet[i].first.toString() << " : " << testSet[i].second.toString() << " = ";
+            std::cout << i << ": GET " << testSet[i].first.toString() << " : " << testSet[i].second.toString() << " = ";
             data_blob_copy result = db->get(testSet[i].first);
             std::cout << result.toString() << std::endl;
 

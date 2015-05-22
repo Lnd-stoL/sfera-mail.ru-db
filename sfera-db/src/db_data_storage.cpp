@@ -68,7 +68,7 @@ void db_data_storage::writePage(db_page *page)
     assert( page->wasChanged() );
 
     if (!_currentOperation->writesPage(page)) {     // instead immidiate writing add the page to the current operation's write set
-        _pagesCache->pin(page);                     // because of no steal
+        _pagesCache->pin(page);                     // because of no steal logging strategy
         _pagesCache->makeDirty(page);
     }
 

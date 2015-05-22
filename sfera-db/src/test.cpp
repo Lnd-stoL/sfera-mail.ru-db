@@ -53,16 +53,16 @@ void testOpening(std::vector<std::pair<data_blob, data_blob>> &testSet)
 int main (int argc, char** argv)
 {
     database_config dbConfig;
-    dbConfig.pageSizeBytes = 2000;
+    dbConfig.pageSizeBytes = 512;
     dbConfig.maxDBSize = 100000*1024;
-    dbConfig.cacheSizePages = 256;
+    dbConfig.cacheSizePages = 32;
 
     std::vector<std::pair<data_blob, data_blob>> testSet;
-    fillTestSet(testSet, 40000);
+    fillTestSet(testSet, 1000);
 
     if (database::exists("test_db")) {
-        testOpening(testSet);
-        return 0;
+        //testOpening(testSet);
+        //return 0;
     }
 
     database *db = database::createEmpty("test_db", dbConfig);
@@ -71,7 +71,7 @@ int main (int argc, char** argv)
 
         // insertion
         for (size_t i = 0; i < testSet.size(); ++i) {
-            std::cout << "INSERT " << testSet[i].first.toString() << " : " << testSet[i].second.toString() << std::endl;
+            std::cout << i << ": INSERT " << testSet[i].first.toString() << " : " << testSet[i].second.toString() << std::endl;
             db->insert(testSet[i].first, testSet[i].second);
 
             //std::cout << std::endl << db->dumpTree() << std::endl;
@@ -82,7 +82,7 @@ int main (int argc, char** argv)
         // getting
         bool getOK = true;
         for (size_t i = 0; i < testSet.size(); ++i) {
-            std::cout << "GET " << testSet[i].first.toString() << " : " << testSet[i].second.toString() << " = ";
+            std::cout << i << ": GET " << testSet[i].first.toString() << " : " << testSet[i].second.toString() << " = ";
             data_blob_copy result = db->get(testSet[i].first);
             std::cout << result.toString() << std::endl;
 

@@ -2,7 +2,7 @@
 CLANG_COMPILER    := clang++-3.6 -stdlib=libc++
 CPP_COMPILER      := g++
 
-LIB_FILES         := ../Hoard/src/libhoard.a
+LIB_FILES         := 
 SRC_FILES         := src/*.cpp
 OUTPUT_PATH       := ./bin/lib/libsfera_db.so
 

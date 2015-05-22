@@ -12,10 +12,6 @@
 
 namespace sfera_db
 {
-    class db_page;
-
-    //----------------------------------------------------------------------------------------------------------------------
-
     namespace pages_cache_internals
     {
 
@@ -25,10 +21,9 @@ namespace sfera_db
             bool dirty = false;
             std::list<int>::const_iterator lruQueueIterator;
 
-            db_page *page = nullptr;
 
             cached_page_info() { }
-            explicit cached_page_info(db_page *p) : page(p) { }
+            inline bool isUsed() const  { return pinned != 0; }
         };
 
     }

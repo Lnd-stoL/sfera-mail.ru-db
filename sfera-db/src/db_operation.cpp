@@ -23,10 +23,10 @@ bool db_operation::writesPage(db_page *page)
 
 void db_operation::invalidatePage(int pageId)
 {
-    auto pageIt = _pagesWriteSet.find(pageId);
-    if (pageIt == _pagesWriteSet.end()) return;
+    //auto pageIt = _pagesWriteSet.find(pageId);
+    //if (pageIt == _pagesWriteSet.end()) return;
 
-    _pagesWriteSet.erase(pageIt);
+    _pagesWriteSet.erase(pageId);
 }
 
 

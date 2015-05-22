@@ -508,18 +508,5 @@ uint8_t *db_page::bytes() const
     return _pageBytes;
 }
 
-
-void db_page::wasCached(pages_cache_internals::cached_page_info *cacheRelatedInfo)
-{
-    assert( cacheRelatedInfo != nullptr );
-    _cacheRelatedInfo = cacheRelatedInfo;
-}
-
-
-pages_cache_internals::cached_page_info *db_page::cacheRelatedInfo() const
-{
-    return _cacheRelatedInfo;
-}
-
 //----------------------------------------------------------------------------------------------------------------------
 }

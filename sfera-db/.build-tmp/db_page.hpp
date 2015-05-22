@@ -82,7 +82,7 @@ namespace sfera_db
         off_t     _dataBlockEndOffset = 0;
         bool      _hasChildren        = false;
 
-        mutable pages_cache_internals::cached_page_info *_cacheRelatedInfo = nullptr;
+        mutable pages_cache_internals::cached_page_info _cacheRelatedInfo;
 
 
     private:
@@ -176,11 +176,9 @@ namespace sfera_db
         uint8_t*  bytes() const;
         inline  int       lastRightChild()   const  { return this->childAt((int) _recordCount); }
         inline  uint64_t  lastModifiedOpId() const  { return _lastModifiedOpId; }
+        inline pages_cache_internals::cached_page_info &cacheRelatedInfo() const  { return _cacheRelatedInfo; }
 
         void wasSaved(uint64_t opId);
-
-        void wasCached(pages_cache_internals::cached_page_info *cacheRelatedInfo);
-        pages_cache_internals::cached_page_info *cacheRelatedInfo() const;
     };
 
 }

@@ -15,9 +15,10 @@ set(SOURCE_FILES
     src/db_stable_storage_file.cpp
     src/db_binlog_logger.cpp
     src/db_operation.cpp
-
     src/syscall_checker.hpp
     src/db_data_storage_config.hpp
+    src/cached_page_info.hpp
     )
 
-add_executable(sfera-db ${SOURCE_FILES} src/cached_page_info.hpp)
+add_executable(sfera-db ${SOURCE_FILES})
+target_link_libraries (sfera-db ${CMAKE_THREAD_LIBS_INIT} pthread)

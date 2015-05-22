@@ -583,7 +583,7 @@ data_blob_copy database::_lookupByKey(data_blob key)
 string database::dumpCacheStatistics() const
 {
     std::ostringstream str;
-    auto cacheStatistics = _dataStorage->pagesCache().statictics();
+    auto cacheStatistics = _dataStorage->pagesCache().statistics();
 
     str << "fetches: " << cacheStatistics.fetchesCount << std::endl;
     str << "misses: " << cacheStatistics.missesCount << std::endl;
