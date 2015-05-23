@@ -30,6 +30,7 @@ auto database::createEmpty(const std::string &path, database_config const &confi
 
     database *db = new database();
     db->_dataStorage = db_data_storage::createEmpty(path, dbStorageCfg);
+    db->_maxDataEntryLength = config.maxDataEntryLength;
 
     db_page *rootPage = db->_dataStorage->allocatePage(true);
     db->_dataStorage->changeRootPage(rootPage->id());
@@ -55,7 +56,7 @@ void database::insert(data_blob key, data_blob value)
     db_operation operation(_currentOperationId++);
     _dataStorage->onOperationStart(&operation);
 
-    _rKeyInsertionLookup(_dataStorage->rootPageId(), -1, key_value(key, value));
+    _rKeyInsertionLookup(_dataStorage->rootPageId(), -1, 0, key_value(key, value));
 
     _dataStorage->onOperationEnd();
 }
@@ -96,7 +97,7 @@ bool database::_keysEqual(data_blob key1, data_blob key2)
 }
 
 
-void database::_rKeyInsertionLookup(int pageId, int parentPageId, const key_value &element)
+void database::_rKeyInsertionLookup(int pageId, int parentPageId, int parentRecordPos, const key_value &element)
 {
     db_page *page = _dataStorage->fetchPage(pageId);
     auto keyIt = std::lower_bound(page->keysBegin(), page->keysEnd(), element.key, _binaryKeyComparer);
@@ -114,15 +115,14 @@ void database::_rKeyInsertionLookup(int pageId, int parentPageId, const key_valu
         return;
     }
 
-    if (page->isFull()) {
-        page = _splitPage(page, parentPageId, element);
+    if (_isPageFull(page)) {
+        page = _splitPage(page, parentPageId == -1 ? nullptr : _dataStorage->fetchPage(parentPageId), parentRecordPos, element);
         keyIt = std::lower_bound(page->keysBegin(), page->keysEnd(), element.key, _binaryKeyComparer);
     }
 
     if (!page->hasChildren()) {
-        int nextPageId = page->id();
-        _dataStorage->releasePage(page);
-        _tryInsertInPage(nextPageId, parentPageId, element);
+        page->insert(keyIt, element);
+        _dataStorage->writeAndRelease(page);
         return;
     }
 
@@ -130,7 +130,7 @@ void database::_rKeyInsertionLookup(int pageId, int parentPageId, const key_valu
     int parPageId = page->id();
     _dataStorage->releasePage(page);
 
-    return _rKeyInsertionLookup(nextPageId, parPageId, element);
+    return _rKeyInsertionLookup(nextPageId, parPageId, keyIt.position(), element);
 }
 
 
@@ -176,39 +176,19 @@ void database::_makeNewRoot(key_value element, int leftLink, int rightLink)
 }
 
 
-void database::_tryInsertInPage(int pageId, int parentPageId, const key_value &element)
-{
-    db_page *page = _dataStorage->fetchPage(pageId);
-    assert(!page->hasChildren());
-
-    if (!page->possibleToInsert(element)) {
-        _dataStorage->releasePage(page);
-        throw std::runtime_error("Impossible insert");
-    }
-
-    auto insertionIt = std::lower_bound(page->keysBegin(), page->keysEnd(), element.key, _binaryKeyComparer);
-    page->insert(insertionIt, element);
-    _dataStorage->writeAndRelease(page);
-}
-
-
-db_page *database::_splitPage(db_page *page, int parentPageId, const key_value &element)
+db_page *database::_splitPage(db_page *page, db_page *parentPage, int parentRecordPos, const key_value &element)
 {
     db_page *rightPage = _dataStorage->allocatePage(!page->hasChildren());
     key_value_copy medianElement = page->splitEquispace(rightPage);
     db_page *leftPage = page;
 
-    if (parentPageId == -1) {
+    if (parentPage == nullptr) {
         _makeNewRoot(medianElement, leftPage->id(), rightPage->id());
     } else {
 
-        db_page *parentPage = _dataStorage->fetchPage(parentPageId);
-        auto insertionIt = std::lower_bound(parentPage->keysBegin(), parentPage->keysEnd(), medianElement.key,
-                                            _binaryKeyComparer);
-        parentPage->reconnect(insertionIt.position(), rightPage->id());
-        parentPage->insert(insertionIt, medianElement, leftPage->id());
-        _dataStorage->writePage(parentPage);
-        _dataStorage->releasePage(parentPage);
+        parentPage->reconnect(parentRecordPos, rightPage->id());
+        parentPage->insert(parentRecordPos, medianElement, leftPage->id());
+        _dataStorage->writeAndRelease(parentPage);
     }
 
     _dataStorage->writePage(leftPage);
@@ -597,6 +577,12 @@ string database::dumpCacheStatistics() const
 bool database::exists(const std::string &path)
 {
     return db_data_storage::exists(path);
+}
+
+
+bool database::_isPageFull(db_page *page)
+{
+    return page->freeBytes() <= _maxDataEntryLength + 10 /* sizeof indexing structures */;
 }
 
 //----------------------------------------------------------------------------------------------------------------------
@@ -1552,7 +1538,7 @@ void db_page::reconnect(int position, int childId)
 
 bool db_page::possibleToInsert(key_value element)
 {
-    return _freeBytes() >= element.summLength() + _calcRecordIndexSize();
+    return freeBytes() >= element.summLength() + _calcRecordIndexSize();
 }
 
 
@@ -1662,7 +1648,7 @@ key_value_copy db_page::splitEquispace(db_page *rightPage)
 
 bool db_page::canReplace(int position, data_blob newData) const
 {
-    return newData.length() - _recordIndex(position).valueLength <= _freeBytes();
+    return newData.length() - _recordIndex(position).valueLength <= freeBytes();
 }
 
 
@@ -1683,7 +1669,7 @@ void db_page::append(key_value data, int linked)
 
 size_t db_page::usedBytes() const
 {
-    return _pageSize - _freeBytes();
+    return _pageSize - freeBytes();
 }
 
 
@@ -2548,12 +2534,12 @@ void testOpening(std::vector<std::pair<data_blob, data_blob>> &testSet)
 int main (int argc, char** argv)
 {
     database_config dbConfig;
-    dbConfig.pageSizeBytes = 512;
+    dbConfig.pageSizeBytes = 1024;
     dbConfig.maxDBSize = 100000*1024;
-    dbConfig.cacheSizePages = 32;
+    dbConfig.cacheSizePages = 128;
 
     std::vector<std::pair<data_blob, data_blob>> testSet;
-    fillTestSet(testSet, 1000);
+    fillTestSet(testSet, 5000);
 
     if (database::exists("test_db")) {
         //testOpening(testSet);

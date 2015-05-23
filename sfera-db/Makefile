@@ -20,6 +20,11 @@ _src_merge:
 	cp src/*.h .build-tmp	
 	cat $(SRC_FILES) > $(_MERGED_SRC) 
 
+
+lib_rel_clang_srcm_prof: _src_merge
+	$(CLANG_COMPILER) $(GXX_OPTIONS) $(GXX_OPTIONS_DYLIB) -fprofile-instr-generate -g -O3 -DNDEBUG $(_MERGED_SRC) $(LIB_FILES) -o $(OUTPUT_PATH)
+
+
 lib_rel_clang_srcm: _src_merge
 	$(CLANG_COMPILER) $(GXX_OPTIONS) $(GXX_OPTIONS_DYLIB) -g -O3 -DNDEBUG $(_MERGED_SRC) $(LIB_FILES) -o $(OUTPUT_PATH)
 

@@ -325,7 +325,7 @@ void db_page::reconnect(int position, int childId)
 
 bool db_page::possibleToInsert(key_value element)
 {
-    return _freeBytes() >= element.summLength() + _calcRecordIndexSize();
+    return freeBytes() >= element.summLength() + _calcRecordIndexSize();
 }
 
 
@@ -435,7 +435,7 @@ key_value_copy db_page::splitEquispace(db_page *rightPage)
 
 bool db_page::canReplace(int position, data_blob newData) const
 {
-    return newData.length() - _recordIndex(position).valueLength <= _freeBytes();
+    return newData.length() - _recordIndex(position).valueLength <= freeBytes();
 }
 
 
@@ -456,7 +456,7 @@ void db_page::append(key_value data, int linked)
 
 size_t db_page::usedBytes() const
 {
-    return _pageSize - _freeBytes();
+    return _pageSize - freeBytes();
 }
 
 

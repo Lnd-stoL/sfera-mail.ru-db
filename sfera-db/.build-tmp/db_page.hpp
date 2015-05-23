@@ -110,10 +110,6 @@ namespace sfera_db
             return (_indexTable - _pageBytes) + _recordIndexTableSize();
         }
 
-        inline size_t _freeBytes() const {
-            return _dataBlockEndOffset - _auxInfoSize();
-        }
-
         inline size_t _calcRecordIndexSize() const {
             return (_hasChildren ? 5 : 3) * sizeof(uint16_t);
         }
@@ -177,6 +173,10 @@ namespace sfera_db
         inline  int       lastRightChild()   const  { return this->childAt((int) _recordCount); }
         inline  uint64_t  lastModifiedOpId() const  { return _lastModifiedOpId; }
         inline pages_cache_internals::cached_page_info &cacheRelatedInfo() const  { return _cacheRelatedInfo; }
+
+        inline size_t freeBytes() const {
+            return _dataBlockEndOffset - _auxInfoSize();
+        }
 
         void wasSaved(uint64_t opId);
     };

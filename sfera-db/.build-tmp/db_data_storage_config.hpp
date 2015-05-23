@@ -10,9 +10,9 @@
 
 struct db_data_storage_config
 {
-    size_t pageSize         = 4096;
-    size_t maxStorageSize   = 0;
-    size_t cacheSizeInPages = 256;
+    size_t pageSize           = 4096;
+    size_t maxStorageSize     = 0;
+    size_t cacheSizeInPages   = 256;
 };
 
 //----------------------------------------------------------------------------------------------------------------------

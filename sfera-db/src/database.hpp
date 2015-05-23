@@ -13,9 +13,10 @@ namespace sfera_db
 
     struct database_config
     {
-        size_t maxDBSize      = 0;
-        size_t pageSizeBytes  = 4096;
-        size_t cacheSizePages = 16;
+        size_t maxDBSize          = 0;
+        size_t pageSizeBytes      = 2048;
+        size_t cacheSizePages     = 16;
+        size_t maxDataEntryLength = 80;
     };
 
 //----------------------------------------------------------------------------------------------------------------------
@@ -50,15 +51,16 @@ namespace sfera_db
 //----------------------------------------------------------------------------------------------------------------------
 
     private:
+        size_t _maxDataEntryLength = 0;
         db_data_storage *_dataStorage = nullptr;
         uint64_t _currentOperationId = 1;
 
     private:
         data_blob_copy _lookupByKey(data_blob key);
-        void _rKeyInsertionLookup(int pageId, int parentPageId, const key_value &element);
+        void _rKeyInsertionLookup(int pageId, int parentPageId, int parentRecordPos, const key_value &element);
         bool _rKeyErasingLookup(int pageId, int parentPageId, int parentRecordPos, const data_blob &element);
-        void _tryInsertInPage(int pageId, int parentPageId, const key_value &element);
-        db_page* _splitPage(db_page *page, int parentPageId, const key_value &element);
+        db_page *_splitPage(db_page *page, db_page *parentPage, int parentRecordPos, const key_value &element);
+        bool _isPageFull(db_page *page);
         bool _makePageMinimallyFilled(db_page *page, int parentPageId, int parentRecordPos);
         void _makeNewRoot(key_value element, int leftLink, int rightLink);
         void _checkAndRemoveEmptyRoot();
